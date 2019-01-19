@@ -17,6 +17,7 @@ class Main(WiFiControl):
         self.rtc = PCF8563(self.i2c, 0x51, zone=3)
         self.oled = SSD1306_I2C(128, 64, self.i2c, 0x3c)
         self.config['RTC_TIME'] = (0, 1, 1, 0, 0, 0, 0, 0)
+        self.config['NTP_UPDATE'] = True
 
 
         loop = asyncio.get_event_loop()
