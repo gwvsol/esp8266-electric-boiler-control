@@ -5,6 +5,8 @@ gc.collect()                                #Очищаем RAM
 config = {}                                 #Основное хранилище настроек
 config['MODE_WiFi'] = 'ST'                  #Режим работы WiFi AP или ST
 config['ssid'] = 'w2234'                    #SSID для подключения к WiFi
+#config['ssid'] = 'NETGEAR10'                    #SSID для подключения к WiFi
+#config['wf_pass'] = 'tinywind994'             #Пароль для подключения к WiFi
 config['wf_pass'] = 'Fedex##54'             #Пароль для подключения к WiFi
 config['IP'] = None                         #Дефолтный IP адрес
 config['internet_outage'] = True            #Интернет отключен(значение True)
