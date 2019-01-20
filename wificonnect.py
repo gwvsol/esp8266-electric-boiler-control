@@ -3,19 +3,28 @@ import uasyncio as asyncio
 gc.collect()                                #Очищаем RAM
 
 config = {}                                 #Основное хранилище настроек
+config['DEBUG'] = True                      #Разрешаем отладочные сообщения
 config['MODE_WiFi'] = 'ST'                  #Режим работы WiFi AP или ST
 config['ssid'] = 'w2234'                    #SSID для подключения к WiFi
-#config['ssid'] = 'NETGEAR10'                    #SSID для подключения к WiFi
-#config['wf_pass'] = 'tinywind994'             #Пароль для подключения к WiFi
+#config['ssid'] = 'BOILER_CONTROLLER'               #SSID для подключения к WiFi
+#config['wf_pass'] = 'tinywind994'          #Пароль для подключения к WiFi
 config['wf_pass'] = 'Fedex##54'             #Пароль для подключения к WiFi
+config['WIFI_AP'] = ('192.168.4.1', '255.255.255.0', '192.168.4.1', '208.67.222.222')
 config['IP'] = None                         #Дефолтный IP адрес
-config['internet_outage'] = True            #Интернет отключен(значение True)
+config['no_wifi'] = True                    #Интернет отключен(значение True)
 config['Uptime'] = 0                        #Время работы контроллера
+config['MemFree'] = None
+config['MemAvailab'] = None
+config['FREQ'] = None
+config['RTC_TIME'] = (0, 1, 1, 0, 0, 0, 0, 0)
+config['NTP_UPDATE'] = True
+config['TEMP'] = None
+config['PRESSURE'] = None
+config['HUMIDITY'] = None
 
 
 #Базовый класс
 class WiFiBase:
-    DEBUG = False
     def __init__(self, config):
         self.config = config
         if self.config['MODE_WiFi'] == 'AP':
@@ -28,7 +37,7 @@ class WiFiBase:
 
     #Выводим отладочные сообщения
     def dprint(self, *args):
-        if self.DEBUG:
+        if self.config['DEBUG']:
             print(*args)
 
 
@@ -69,7 +78,7 @@ class WiFiBase:
                 self.dprint('WiFi: AP Mode OK!')
                 self.config['IP'] = self.config['WIFI'].ifconfig()[0]
                 self.dprint('WiFi:', self.config['IP'])
-                self.config['internet_outage'] = 'AP'
+                self.config['no_wifi'] = False
         elif self.config['MODE_WiFi'] == 'ST': #Если подключаемся к сети
             self.dprint('Connecting to WiFi...')
             self._con() #Настройка для режима Точка доступа и подключения к сети WiFi
@@ -84,10 +93,10 @@ class WiFiBase:
                 self.dprint('WiFi: Connection successfully!')
                 self.config['IP'] = self.config['WIFI'].ifconfig()[0]
                 self.dprint('WiFi:', self.config['IP'])
-                self.config['internet_outage'] = False #Сообщаем, что соединение успешно установлено
+                self.config['no_wifi'] = False #Сообщаем, что соединение успешно установлено
             #Если соединение по каким-то причинам не установлено
             if not self.config['WIFI'].isconnected():
-                self.config['internet_outage'] = True #Сообщаем, что соединение не установлено
+                self.config['no_wifi'] = True #Сообщаем, что соединение не установлено
                 self.dprint('WiFi: Connection unsuccessfully!')
             self._error_con() #Выводим сообщения, о причинах отсутствия соединения
 
@@ -109,13 +118,13 @@ class WiFiBase:
         if self.config['WIFI'].status() == network.STAT_GOT_IP:
             #Сохраняем новый IP адрес
             self.config['IP'] = self.config['WIFI'].ifconfig()[0]
-            self.config['internet_outage'] = False #Сообщаем, что соединение успешно установлено
+            self.config['no_wifi'] = False #Сообщаем, что соединение успешно установлено
             self.dprint('WiFi: Reconnecting successfully!')
             self.dprint('WiFi:', self.config['IP'])
         self._error_con() #Выводим сообщения, о причинах отсутствия соединения
         #Если по какой-то причине соединение не установлено
         if not self.config['WIFI'].isconnected():
-            self.config['internet_outage'] = True #Сообщаем, что соединение не установлено
+            self.config['no_wifi'] = True #Сообщаем, что соединение не установлено
             self.dprint('WiFi: Reconnecting unsuccessfully!')
         await asyncio.sleep(1)
 
@@ -128,12 +137,12 @@ class WiFiControl(WiFiBase):
     #Проверка соединения с Интернетом
     async def _check_wf(self):
         while True:
-            if not self.config['internet_outage']:                      #Если оединение установлено
+            if not self.config['no_wifi']:                      #Если оединение установлено
                 if self.config['WIFI'].status() == network.STAT_GOT_IP: #Проверяем наличие соединения
                     await asyncio.sleep(1)
                 else:                                                   #Если соединение отсутсвует или оборвано
                     await asyncio.sleep(1)
-                    self.config['internet_outage'] = True               #Сообщаем, что соединение оборвано
+                    self.config['no_wifi'] = True               #Сообщаем, что соединение оборвано
             else:                                                       #Если соединение отсутсвует
                 await asyncio.sleep(1)
                 await self.reconnect()                                  #Переподключаемся
