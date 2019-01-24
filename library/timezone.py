@@ -80,3 +80,12 @@ class TZONE(object):
         else:
             print('TIME ZONE Winter:', self.TIME_ZONE[self.zone] - 1)
             return self.TIME_ZONE[self.zone] - 1
+
+
+    def setzone(self):
+        utc = time.localtime(self.getntp())
+        z = self.adj_tzone(utc) if self.win else 0
+        nt = utc[0:3] + (0,) + (utc[3]+z,) + utc[4:6] + (0,)
+        print('Update time for Time Zone: ', z)
+        machine.RTC().datetime(nt)
+        print('Local Time: ', str(time.localtime()))
