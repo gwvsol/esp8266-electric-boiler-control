@@ -12,9 +12,9 @@ gc.collect()                                                            #Очи�
 class WiFiBase(object):
     def __init__(self):
         self.wifi_led = Pin(2, Pin.OUT, value = 1)              #Pin2, светодиод на плате контроллера
-        self.i2c = I2C(scl=Pin(14), sda=Pin(12), freq=400000)
+        self.i2c = I2C(scl=Pin(14), sda=Pin(12), freq=400000)   #Pin12 и 14 i2c шина
         self.default_on = Pin(14, Pin.IN)                       #Pin14, кнопка для сброса настроек в дефолт
-        #Дефолтные настройки, если файла config.txt не будет обнаружено в системе
+        #Дефолтные настройки, если файла config.txt не обнаружено в системе
         self.default = {}
         self.default['DEBUG'] = True             #Разрешаем отладочный сообщения
         self.default['MODE_WiFi'] = 'AP'         #Включаем точку доступа
@@ -25,8 +25,7 @@ class WiFiBase(object):
         self.default['T_WATER'] = 20.0           #Температура в бойлере
         #Дефолтный хещ логина и пароля для web admin (root:root)
         self.default_web = str(b'0242c0436daa4c241ca8a793764b7dfb50c223121bb844cf49be670a3af4dd18')
-        #Все настройки системы
-        self.config = {}
+        self.config = {} #Все настройки системы
         self.config['DEBUG'] = True
         self.config['MODE_WiFi'] = None
         self.config['ssid'] = None
@@ -63,6 +62,7 @@ class WiFiBase(object):
         #Читаем настройки из файла config.txt
         with open('config.txt', 'r') as f:
             conf = json.loads(f.read())
+        #Обновляем настройки полученные из файла config.txt
         self.config['DEBUG'] = conf['DEBUG']
         self.config['MODE_WiFi'] = conf['MODE_WiFi']    #Режим работы WiFi AP или ST
         self.config['ssid'] = conf['ssid']              #SSID для подключения к WiFi
@@ -70,23 +70,23 @@ class WiFiBase(object):
         self.config['TIMEZONE'] = conf['timezone']      #Временная зона
         self.config['DST'] = conf['DST']                #True включен переход на зимнее время False - выключен
         self.config['T_WATER'] = conf['T_WATER']        #Температура вводы в бойлере
-
+        #Начальные настройки сети AP или ST
         if self.config['MODE_WiFi'] == 'AP':
             self._ap_if = network.WLAN(network.AP_IF)
             self.config['WIFI'] = self._ap_if
         elif self.config['MODE_WiFi'] == 'ST':
             self._sta_if = network.WLAN(network.STA_IF)
             self.config['WIFI'] = self._sta_if
-
+        #Настройка для работы с RTC, OLED и барометром на BME280
         self.rtc = DS3231(self.i2c, self.config['ADR_RTC'], self.config['TIMEZONE'])
         self.oled = SSD1306_I2C(128, 64, self.i2c, self.config['ADR_OLED'])
         self.bme = BME280(i2c=self.i2c, address=self.config['ADR_BME'])
         self.temp = READ_TERM()
 
         loop = asyncio.get_event_loop()
-        loop.create_task(self._heartbeat())                     #Индикация подключения WiFi
-        loop.create_task(self._display())
-        loop.create_task(self._dataupdate())
+        loop.create_task(self._heartbeat())                             #Индикация подключения WiFi
+        loop.create_task(self._display())                               #Работа экрана
+        loop.create_task(self._dataupdate())                            #Обновление информация и часы
 
 
     #Выводим отладочные сообщения
