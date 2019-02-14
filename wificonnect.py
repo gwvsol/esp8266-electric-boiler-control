@@ -1,28 +1,13 @@
 import gc, network, os
 import uasyncio as asyncio
-from mcontroll import config
 gc.collect()                                #Очищаем RAM
 
-#config = {}                                 #Основное хранилище настроек
-#config['DEBUG'] = True                      #Разрешаем отладочные сообщения
-#config['MODE_WiFi'] = 'ST'                  #Режим работы WiFi AP или ST
-#config['ssid'] = 'w2234'                    #SSID для подключения к WiFi
-#config['ssid'] = 'BOILER_CONTROLLER'               #SSID для подключения к WiFi
-#config['wf_pass'] = 'tinywind994'          #Пароль для подключения к WiFi
-#config['wf_pass'] = 'Fedex##54'             #Пароль для подключения к WiFi
-
-
+config = {}                                 #Основное хранилище настроек
 
 #Базовый класс
 class WiFiBase:
     def __init__(self, config):
         self.config = config
-        if self.config['MODE_WiFi'] == 'AP':
-            self._ap_if = network.WLAN(network.AP_IF)
-            self.config['WIFI'] = self._ap_if
-        elif self.config['MODE_WiFi'] == 'ST':
-            self._sta_if = network.WLAN(network.STA_IF)
-            self.config['WIFI'] = self._sta_if
 
 
     #Выводим отладочные сообщения
