@@ -1,5 +1,6 @@
 import picoweb, gc, ubinascii
 from wificonnect import config
+gc.collect()                                                #Очищаем RAM
 from ubinascii import hexlify
 from uhashlib import sha256
 gc.collect()                                                #Очищаем RAM
@@ -61,6 +62,7 @@ http_footer = """
 
 @app.route("/")
 def index(req, resp):
+    gc.collect()                                                #Очищаем RAM
     t = config['RTC_TIME']
     dts = 'ON' if config['DST'] == True else 'OFF'
     yield from picoweb.start_response(resp)
@@ -82,6 +84,7 @@ def index(req, resp):
     
 @app.route('/api/v1/temp') 
 def temp(req, resp):
+    gc.collect()                                                #Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/temp
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{:.2f}'.format(config['TEMP']))
@@ -99,6 +102,7 @@ def temp(req, resp):
 
 @app.route('/api/v1/pres') 
 def temp(req, resp):
+    gc.collect()                                                #Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/pres
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{}'.format(config['PRESSURE']))
@@ -116,6 +120,7 @@ def temp(req, resp):
 
 @app.route('/api/v1/hum') 
 def temp(req, resp):
+    gc.collect()                                                #Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/hum
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{}'.format(config['HUMIDITY']))
