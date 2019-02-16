@@ -1,9 +1,9 @@
 import picoweb, gc, ubinascii, os, json
 from wificonnect import config
-gc.collect()                                                # Очищаем RAM
+gc.collect()                                                            # Очищаем RAM
 from ubinascii import hexlify
 from uhashlib import sha256
-gc.collect()                                                # Очищаем RAM
+gc.collect()                                                            # Очищаем RAM
 
 
 app = picoweb.WebApp(__name__)
@@ -92,7 +92,7 @@ def read_config():
 def update_config(dbg=None, mode=None, ssid=None, pssw=None, tz=None, dts=None, tw=None):
     with open('config.txt', 'r') as f:
         conf = json.loads(f.read())
-        gc.collect()                                                # Очищаем RAM
+        gc.collect()                                                    # Очищаем RAM
     # Обновляем настройки полученные из файла config.txt
     conf['DEBUG'] = dbg if dbg else conf['DEBUG']
     conf['MODE_WiFi'] = mode if mode else conf['MODE_WiFi']
@@ -102,11 +102,11 @@ def update_config(dbg=None, mode=None, ssid=None, pssw=None, tz=None, dts=None, 
     conf['DST'] = dts if dts else conf['DST']
     conf['T_WATER'] = tw if tw else conf['T_WATER']
     dprint('Update config.txt file\n', conf)
-    gc.collect()                                                    # Очищаем RAM
+    gc.collect()                                                        # Очищаем RAM
     # Записываем новый файл config.txt
     with open('config.txt', 'w') as f:
        json.dump(conf, f)
-    gc.collect()                                                    # Очищаем RAM
+    gc.collect()                                                        # Очищаем RAM
 
 
 def require_auth(func):
@@ -136,7 +136,7 @@ def require_auth(func):
 @app.route('/')
 @require_auth
 def index(req, resp):
-    gc.collect()                                                # Очищаем RAM
+    gc.collect()                                                        # Очищаем RAM
     t = config['RTC_TIME']
     dts = 'ON' if config['DST'] == True else 'OFF'
     yield from picoweb.start_response(resp)
@@ -162,10 +162,10 @@ def index(req, resp):
 @app.route('/wifi')
 @require_auth
 def wifiset(req, resp):
-    gc.collect()                                                # Очищаем RAM
+    gc.collect()                                                        # Очищаем RAM
     yield from picoweb.start_response(resp)
     yield from resp.awrite(http_head)
-    gc.collect()                                                # Очищаем RAM
+    gc.collect()                                                        # Очищаем RAM
     if req.method == "POST":
         yield from req.read_form_data()
         update_config(mode=req.form['wifi'], ssid=req.form['ssid'], pssw=req.form['pasw'])
@@ -209,6 +209,7 @@ def admin(req, resp):
             </fieldset>
         </form>
     </div>""")
+    yield from resp.awrite(http_footer)
 
 
 @app.route('/read')
@@ -231,13 +232,19 @@ def read_set(req, resp):
         if i[0] == 'wf_pass':
             yield from resp.awrite('<p>Wi-Fi Passwd: {}</p>'.format(i[1]))
         if i[0] == 'T_WATER':
-            yield from resp.awrite('<p>Water temp set: {}</p>'.format(i[1]))
+            yield from resp.awrite('<p>Water temp set: {}\'C</p>'.format(i[1]))
         if i[0] == 'DEBUG':
             yield from resp.awrite('<p>Debug mode: {}</p>'.format(on_off))
         if i[0] == 'timezone':
             yield from resp.awrite('<p>Time zone: {}</p>'.format(i[1]))
         if i[0] == 'DST':
             yield from resp.awrite('<p>Daylight saving time: {}</p>'.format(on_off))
+        if i[0] == 'TIME_ON': # '{:0>2d}:{:0>2d}'.format(t[3], t[4])
+            yield from resp.awrite('<p>On time: {:0>2d}:{:0>2d}</p>'.format(i[1][3], i[1][4]))
+        if i[0] == 'TIME_OFF':
+            yield from resp.awrite('<p>Off time: {:0>2d}:{:0>2d}</p>'.format(i[1][3], i[1][4]))
+        if i[0] == 'WORK_ALL':
+            yield from resp.awrite('<p>Continuous work: {}</p>'.format(i[1]))
     yield from resp.awrite('</div>')
     yield from resp.awrite(http_footer)
     gc.collect()                                                        # Очищаем RAM
@@ -246,7 +253,7 @@ def read_set(req, resp):
 @app.route('/api/v1/temp')
 @require_auth
 def temp(req, resp):
-    gc.collect()                                                # Очищаем RAM
+    gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/temp
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{:.2f}'.format(config['TEMP']))
@@ -265,7 +272,7 @@ def temp(req, resp):
 @app.route('/api/v1/pres')
 @require_auth 
 def pres(req, resp):
-    gc.collect()                                                # Очищаем RAM
+    gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/pres
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{}'.format(config['PRESSURE']))
@@ -284,7 +291,7 @@ def pres(req, resp):
 @app.route('/api/v1/hum')
 @require_auth
 def hum(req, resp):
-    gc.collect()                                                # Очищаем RAM
+    gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/hum
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{}'.format(config['HUMIDITY']))

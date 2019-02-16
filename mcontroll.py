@@ -2,42 +2,45 @@ import gc, network, os, json
 import uasyncio as asyncio
 from machine import I2C, Pin, freq
 from wificonnect import WiFiControl
-gc.collect()                                                            #Очищаем RAM
+gc.collect()                                                            # Очищаем RAM
 from i2c_ds3231 import DS3231
 from ssd1306 import SSD1306_I2C
 from term_adc import READ_TERM
 from bme280 import BME280
 from webapp import app
-gc.collect()                                                            #Очищаем RAM
+gc.collect()                                                            # Очищаем RAM
 
-#Базовый класс
+# Базовый класс
 class Main(WiFiControl):
     def __init__(self):
         super().__init__()
-        self.wifi_led = Pin(2, Pin.OUT, value = 1)              #Pin2, светодиод на плате контроллера
-        self.i2c = I2C(scl=Pin(14), sda=Pin(12), freq=400000)   #Pin12 и 14 i2c шина
-        self.default_on = Pin(14, Pin.IN)                       #Pin14, кнопка для сброса настроек в дефолт
-        #Дефолтные настройки, если файла config.txt не обнаружено в системе
+        self.wifi_led = Pin(2, Pin.OUT, value = 1)              # Pin2, светодиод на плате контроллера
+        self.i2c = I2C(scl=Pin(14), sda=Pin(12), freq=400000)   # Pin12 и 14 i2c шина
+        self.default_on = Pin(14, Pin.IN)                       # Pin14, кнопка для сброса настроек в дефолт
+        # Дефолтные настройки, если файла config.txt не обнаружено в системе
         self.default = {}
-        self.default['DEBUG'] = True             #Разрешаем отладочный сообщения
-        self.default['MODE_WiFi'] = 'AP'         #Включаем точку доступа
-        self.default['ssid'] = 'HEAT_CONTROL'    #Устанавливаем имя точки доступа
-        self.default['wf_pass'] = 'roottoor'     #Пароль для точки доступа
-        self.default['timezone'] = 3             #Временная зона
-        self.default['DST'] = True               #Разрешаем переход с летнего на зимнее время
-        self.default['T_WATER'] = 20.0           #Температура в бойлере
-        #Дефолтный хещ логина и пароля для web admin (root:root)
+        self.default['DEBUG'] = True             # Разрешаем отладочный сообщения
+        self.default['MODE_WiFi'] = 'AP'         # Включаем точку доступа
+        self.default['ssid'] = 'HEAT_CONTROL'    # Устанавливаем имя точки доступа
+        self.default['wf_pass'] = 'roottoor'     # Пароль для точки доступа
+        self.default['timezone'] = 3             # Временная зона
+        self.default['DST'] = True               # Разрешаем переход с летнего на зимнее время
+        self.default['T_WATER'] = 20.0           # Температура в бойлере
+        self.default['TIME_ON'] = (0, 0, 0, 5, 0, 0, 0, 0)  # Время включения нагрева бойлера 05:00
+        self.default['TIME_OFF'] = (0, 0, 0, 6, 0, 0, 0, 0) # Время выключения нагрева бойлера 06:00
+        self.default['WORK_ALL'] = False         # Постоянный нагрев бойлера выключен
+        # Дефолтный хещ логина и пароля для web admin (root:root)
         self.default_web = str(b'0242c0436daa4c241ca8a793764b7dfb50c223121bb844cf49be670a3af4dd18')
-        self.config['DEBUG'] = True                     #Разрешаем отладочный сообщения
-        self.config['WEB_Debug'] = True                 #Режим отладки, делаем web server разговорчивым
-        self.config['WEB_Port'] = 80                    #Порт на котором работает web приложение
-        self.config['ADR_RTC'] = 0x68                   #Адрес RTC DS3231
-        self.config['ADR_OLED'] = 0x3c                  #Адрес OLED
-        self.config['ADR_BME'] = 0x76                   #Адрес BME280 барометра
+        self.config['DEBUG'] = True                     # Разрешаем отладочный сообщения
+        self.config['WEB_Debug'] = True                 # Режим отладки, делаем web server разговорчивым
+        self.config['WEB_Port'] = 80                    # Порт на котором работает web приложение
+        self.config['ADR_RTC'] = 0x68                   # Адрес RTC DS3231
+        self.config['ADR_OLED'] = 0x3c                  # Адрес OLED
+        self.config['ADR_BME'] = 0x76                   # Адрес BME280 барометра
         self.config['WIFI_AP'] = ('192.168.4.1', '255.255.255.0', '192.168.4.1', '208.67.222.222')
-        self.config['IP'] = None                        #Дефолтный IP адрес
-        self.config['no_wifi'] = True                   #Интернет отключен(значение True)
-        self.config['Uptime'] = 0                       #Время работы контроллера
+        self.config['IP'] = None                        # Дефолтный IP адрес
+        self.config['no_wifi'] = True                   # Интернет отключен(значение True)
+        self.config['Uptime'] = 0                       # Время работы контроллера
         self.config['MemFree'] = None
         self.config['MemAvailab'] = None
         self.config['FREQ'] = None
@@ -47,52 +50,55 @@ class Main(WiFiControl):
         self.config['PRESSURE'] = None
         self.config['HUMIDITY'] = None
 
-        #Eсли нет файла config.txt или нажата кнопка сброса в дефолт, создаем файл config.txt
+        # Eсли нет файла config.txt или нажата кнопка сброса в дефолт, создаем файл config.txt
         if self.exists('config.txt') == False or not self.default_on(): 
             self.dprint('Create new config.txt file')
             with open('config.txt', 'w') as f:  
                 json.dump(self.default, f)
-        #Eсли нет файла root.txt или нажата кнопка сброса в дефолт, создаем его
+        # Eсли нет файла root.txt или нажата кнопка сброса в дефолт, создаем его
         if self.exists('root.txt') == False or not self.default_on(): 
             self.dprint('Create new root.txt file')
             with open('root.txt', 'w') as f:
                 f.write(self.default_web)
-        #Читаем настройки из файла config.txt
+        # Читаем настройки из файла config.txt
         with open('config.txt', 'r') as f:
             conf = json.loads(f.read())
-        #Обновляем настройки полученные из файла config.txt
+        # Обновляем настройки полученные из файла config.txt
         self.config['DEBUG'] = conf['DEBUG']
-        self.config['MODE_WiFi'] = conf['MODE_WiFi']    #Режим работы WiFi AP или ST
-        self.config['ssid'] = conf['ssid']              #SSID для подключения к WiFi
-        self.config['wf_pass'] = conf['wf_pass']        #Пароль для подключения к WiFi
-        self.config['TIMEZONE'] = conf['timezone']      #Временная зона
-        self.config['DST'] = conf['DST']                #True включен переход на зимнее время False - выключен
-        self.config['T_WATER'] = conf['T_WATER']        #Заданная Температура вводы в бойлере
-        #Начальные настройки сети AP или ST
+        self.config['MODE_WiFi'] = conf['MODE_WiFi']    # Режим работы WiFi AP или ST
+        self.config['ssid'] = conf['ssid']              # SSID для подключения к WiFi
+        self.config['wf_pass'] = conf['wf_pass']        # Пароль для подключения к WiFi
+        self.config['TIMEZONE'] = conf['timezone']      # Временная зона
+        self.config['DST'] = conf['DST']                # True включен переход на зимнее время False - выключен
+        self.config['T_WATER'] = conf['T_WATER']        # Заданная Температура вводы в бойлере
+        self.config['TIME_ON'] = conf['TIME_ON']        # Время включения нагрева бойлера
+        self.config['TIME_OFF'] = conf['TIME_OFF']      # Время выключения нагрева бойлера
+        self.config['WORK_ALL'] = conf['WORK_ALL']      # Постоянный нагрев бойлера выключен
+        # Начальные настройки сети AP или ST
         if self.config['MODE_WiFi'] == 'AP':
             self._ap_if = network.WLAN(network.AP_IF)
             self.config['WIFI'] = self._ap_if
         elif self.config['MODE_WiFi'] == 'ST':
             self._sta_if = network.WLAN(network.STA_IF)
             self.config['WIFI'] = self._sta_if
-        #Настройка для работы с RTC, OLED и барометром на BME280
+        # Настройка для работы с RTC, OLED и барометром на BME280
         self.rtc = DS3231(self.i2c, self.config['ADR_RTC'], self.config['TIMEZONE'])
         self.oled = SSD1306_I2C(128, 64, self.i2c, self.config['ADR_OLED'])
         self.bme = BME280(i2c=self.i2c, address=self.config['ADR_BME'])
         self.temp = READ_TERM()
 
         loop = asyncio.get_event_loop()
-        loop.create_task(self._heartbeat())                             #Индикация подключения WiFi
-        loop.create_task(self._display())                               #Работа экрана
-        loop.create_task(self._dataupdate())                            #Обновление информации и часы
-        loop.create_task(self._start_web_app())                         #Включаем WEB приложение
+        loop.create_task(self._heartbeat())                             # Индикация подключения WiFi
+        loop.create_task(self._display())                               # Работа экрана
+        loop.create_task(self._dataupdate())                            # Обновление информации и часы
+        loop.create_task(self._start_web_app())                         # Включаем WEB приложение
         
     
-    #Запуск WEB приложения
+    # Запуск WEB приложения
     async def _start_web_app(self):
         """Run/Work Web App"""
         while True:
-            gc.collect()                                                    #Очищаем RAM
+            gc.collect()                                                    # Очищаем RAM
             await asyncio.sleep(5)
             if not self.config['no_wifi'] or self.config['MODE_WiFi'] == 'AP':
                 self.ip = self.config['WIFI'].ifconfig()[0]
@@ -105,12 +111,12 @@ class Main(WiFiControl):
             """RTC Update"""
             self.config['RTC_TIME'] = self.rtc.datetime()
             rtc = self.config['RTC_TIME']
-            #Проверка летнего или зименего времени каждую минуту в 30с
+            # Проверка летнего или зименего времени каждую минуту в 30с
             if rtc[5] == 30: 
                 self.rtc.settime('dht')
-            #Если у нас режим подключения к точке доступа и если есть соединение, подводим часы по NTP
+            # Если у нас режим подключения к точке доступа и если есть соединение, подводим часы по NTP
             if self.config['MODE_WiFi'] == 'ST' and not self.config['no_wifi']:
-                #Подводка часов по NTP каждые сутки в 22:00:00
+                # Подводка часов по NTP каждые сутки в 22:00:00
                 if rtc[3] == 23 and rtc[4] == 41 and rtc[5] < 3 and self.config['NTP_UPDATE']:
                         self.config['NTP_UPDATE'] = False
                         self.rtc.settime('ntp')
@@ -120,7 +126,7 @@ class Main(WiFiControl):
             self.config['TEMP'] = round(self.temp.value, 2)
             self.config['PRESSURE'] = round(float(self.bme.values[1]) * 760 / 1013.25, 2)
             self.config['HUMIDITY'] = self.bme.values[2]
-            gc.collect()                                    #Очищаем RAM
+            gc.collect()                                    # Очищаем RAM
             await asyncio.sleep(1)
 
 
@@ -138,19 +144,19 @@ class Main(WiFiControl):
             await asyncio.sleep(1)
 
 
-    #Индикация подключения WiFi
+    # Индикация подключения WiFi
     async def _heartbeat(self):
         while True:
             if self.config['no_wifi'] and self.config['MODE_WiFi'] == 'ST':
-                self.wifi_led(not self.wifi_led())      #Быстрое мигание, если соединение отсутствует
+                self.wifi_led(not self.wifi_led())      # Быстрое мигание, если соединение отсутствует
                 await asyncio.sleep_ms(200)
             elif not self.config['no_wifi'] and self.config['MODE_WiFi'] == 'ST':
-                self.wifi_led(0)                        #Редкое мигание при подключении
+                self.wifi_led(0)                        # Редкое мигание при подключении
                 await asyncio.sleep_ms(50)
                 self.wifi_led(1)
                 await asyncio.sleep_ms(5000)
             else:
-                self.wifi_led(0)                        #Два быстрых миганиения при AP Mode
+                self.wifi_led(0)                        # Два быстрых миганиения при AP Mode
                 await asyncio.sleep_ms(50)
                 self.wifi_led(1)
                 await asyncio.sleep_ms(50)
@@ -160,7 +166,7 @@ class Main(WiFiControl):
                 await asyncio.sleep_ms(5000)
 
 
-    async def _run_main_loop(self):                                     #Бесконечный цикл
+    async def _run_main_loop(self):                                     # Бесконечный цикл
         while True:
             if self.config['DEBUG']:
                 self.config['MemFree'] = str(round(gc.mem_free()/1024, 2))
@@ -171,7 +177,7 @@ class Main(WiFiControl):
                 else:
                     wifi = 'AP mode'
                 rtc = self.config['RTC_TIME']
-            gc.collect()                                                #Очищаем RAM
+            gc.collect()                                                # Очищаем RAM
             try:
                 self.dprint('################# DEBUG MESSAGE ##########################')
                 self.dprint('Uptime:', str(self.config['Uptime'])+' min')
@@ -202,7 +208,7 @@ class Main(WiFiControl):
                 await asyncio.sleep(20)
 
 
-gc.collect()                                                            #Очищаем RAM
+gc.collect()                                                            # Очищаем RAM
 def_main = Main()
 loop = asyncio.get_event_loop()
 loop.run_until_complete(def_main.main())
