@@ -4,9 +4,7 @@ from machine import I2C, Pin, freq
 from wificonnect import WiFiControl
 gc.collect()                                                            # Очищаем RAM
 from i2c_ds3231 import DS3231
-from ssd1306 import SSD1306_I2C
 from term_adc import READ_TERM
-from bme280 import BME280
 from webapp import app
 gc.collect()                                                            # Очищаем RAM
 
@@ -29,14 +27,13 @@ class Main(WiFiControl):
         self.default['TIME_ON'] = (0, 0, 0, 5, 0, 0, 0, 0)  # Время включения нагрева бойлера 05:00
         self.default['TIME_OFF'] = (0, 0, 0, 6, 0, 0, 0, 0) # Время выключения нагрева бойлера 06:00
         self.default['WORK_ALL'] = False         # Постоянный нагрев бойлера выключен
+        self.default['WORK_TABLE'] = False       # Работа по расписнию
+        self.default['ONE-TIME'] = False         # Одноразовое включение
         # Дефолтный хещ логина и пароля для web admin (root:root)
         self.default_web = str(b'0242c0436daa4c241ca8a793764b7dfb50c223121bb844cf49be670a3af4dd18')
         self.config['DEBUG'] = True                     # Разрешаем отладочный сообщения
-        self.config['WEB_Debug'] = True                 # Режим отладки, делаем web server разговорчивым
         self.config['WEB_Port'] = 80                    # Порт на котором работает web приложение
         self.config['ADR_RTC'] = 0x68                   # Адрес RTC DS3231
-        self.config['ADR_OLED'] = 0x3c                  # Адрес OLED
-        self.config['ADR_BME'] = 0x76                   # Адрес BME280 барометра
         self.config['WIFI_AP'] = ('192.168.4.1', '255.255.255.0', '192.168.4.1', '208.67.222.222')
         self.config['IP'] = None                        # Дефолтный IP адрес
         self.config['no_wifi'] = True                   # Интернет отключен(значение True)
@@ -47,8 +44,6 @@ class Main(WiFiControl):
         self.config['RTC_TIME'] = (0, 1, 1, 0, 0, 0, 0, 0)
         self.config['NTP_UPDATE'] = True
         self.config['TEMP'] = None
-        self.config['PRESSURE'] = None
-        self.config['HUMIDITY'] = None
 
         # Eсли нет файла config.txt или нажата кнопка сброса в дефолт, создаем файл config.txt
         if self.exists('config.txt') == False or not self.default_on(): 
@@ -74,6 +69,8 @@ class Main(WiFiControl):
         self.config['TIME_ON'] = conf['TIME_ON']        # Время включения нагрева бойлера
         self.config['TIME_OFF'] = conf['TIME_OFF']      # Время выключения нагрева бойлера
         self.config['WORK_ALL'] = conf['WORK_ALL']      # Постоянный нагрев бойлера выключен
+        self.config['WORK_TABLE'] = conf['WORK_TABLE']  # Работа по рассписанию
+        self.config['ONE-TIME'] = conf['ONE-TIME']      # Одноразовое включение
         # Начальные настройки сети AP или ST
         if self.config['MODE_WiFi'] == 'AP':
             self._ap_if = network.WLAN(network.AP_IF)
@@ -83,13 +80,10 @@ class Main(WiFiControl):
             self.config['WIFI'] = self._sta_if
         # Настройка для работы с RTC, OLED и барометром на BME280
         self.rtc = DS3231(self.i2c, self.config['ADR_RTC'], self.config['TIMEZONE'])
-        self.oled = SSD1306_I2C(128, 64, self.i2c, self.config['ADR_OLED'])
-        self.bme = BME280(i2c=self.i2c, address=self.config['ADR_BME'])
         self.temp = READ_TERM()
 
         loop = asyncio.get_event_loop()
         loop.create_task(self._heartbeat())                             # Индикация подключения WiFi
-        loop.create_task(self._display())                               # Работа экрана
         loop.create_task(self._dataupdate())                            # Обновление информации и часы
         loop.create_task(self._start_web_app())                         # Включаем WEB приложение
         
@@ -103,7 +97,7 @@ class Main(WiFiControl):
             if not self.config['no_wifi'] or self.config['MODE_WiFi'] == 'AP':
                 self.ip = self.config['WIFI'].ifconfig()[0]
                 self.dprint('WebAPP: Running...')
-                app.run(debug=self.config['WEB_Debug'], host =self.ip, port=self.config['WEB_Port'])
+                app.run(debug=self.config['DEBUG'], host =self.ip, port=self.config['WEB_Port'])
             
 
     async def _dataupdate(self):
@@ -124,23 +118,7 @@ class Main(WiFiControl):
                         self.config['NTP_UPDATE'] = True
             """Data Update"""
             self.config['TEMP'] = round(self.temp.value, 2)
-            self.config['PRESSURE'] = round(float(self.bme.values[1]) * 760 / 1013.25, 2)
-            self.config['HUMIDITY'] = self.bme.values[2]
             gc.collect()                                    # Очищаем RAM
-            await asyncio.sleep(1)
-
-
-    async def _display(self):
-        while True:
-            rtc = self.config['RTC_TIME']
-            self.oled.fill(0)
-            self.oled.text('IP: {}'.format(self.config['IP']), 0, 2)
-            self.oled.text('{:0>2d}-{:0>2d}-{:0>2d}'.format(rtc[0], rtc[1], rtc[2]), 25, 17)
-            self.oled.text('{:0>2d}:{:0>2d}:{:0>2d}'.format(rtc[3], rtc[4], rtc[5]), 25, 27)
-            self.oled.text('{}\'C'.format(self.config['TEMP']), 25, 37)
-            self.oled.text('{}mmHg'.format(self.config['PRESSURE']), 25, 47)
-            self.oled.text('{}%'.format(self.config['HUMIDITY']), 25, 57)
-            self.oled.show()
             await asyncio.sleep(1)
 
 
@@ -186,8 +164,6 @@ class Main(WiFiControl):
                 self.dprint('WiFi:', wifi)
                 self.dprint('IP:', self.config['IP'])
                 self.dprint('TEMP: {:.2f}\'C'.format(self.config['TEMP']))
-                self.dprint('PRESSURE: {}mmHg'.format(self.config['PRESSURE']))
-                self.dprint('HUMIDITY: {}%'.format(self.config['HUMIDITY']))
                 self.dprint('MemFree:', '{}Kb'.format(self.config['MemFree']))
                 self.dprint('MemAvailab:', '{}Kb'.format(self.config['MemAvailab']))
                 self.dprint('FREQ:', '{}MHz'.format(self.config['FREQ']))
