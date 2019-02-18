@@ -117,11 +117,14 @@ date_set = """<form action='admin' method='POST'>
 time_work_set = """<form action='admin' method='POST'>
                     <fieldset>
                         <legend>Setting the operating mode</legend>
+                        <p>Temperature<br>
+                        <input type="number" name="temp" size="4" min="35" max="85" step="5" value="40.0">'C</p>
                         <p><input type="radio" name="work_mode" value="contin">Continuous work<br>
                             <input type="radio" name="work_mode" value="schedule">On schedule<br>
                             <input type="radio" name="work_mode" checked value="onetime">One-time activation</p>
-                        <p><input type="time" name="time_on" required><br>On time<br></p>
-                        <p><input type="time" name="time_off" required><br>Off time<br></p>
+                        <p>Time<br>
+                        <input type="time" name="time_on" required>On<br></p>
+                        <p><input type="time" name="time_off" required>Off<br></p>
                     <p><input type="submit" value="Set Time&Mode"></p>
                     </fieldset>
                 </form>"""
@@ -187,7 +190,6 @@ def str_to_bool(s):
 def reset_machine():
     reset()
 
-
 # Читаем config.txt
 def read_config():
     with open('config.txt', 'r') as f:
@@ -217,33 +219,60 @@ def update_config(dbg=None, mode=None, ssid=None, pssw=None, tz=None, \
         gc.collect()                                                    # Очищаем RAM
     # Обновляем настройки полученные из файла config.txt
     conf['DEBUG'] = str_to_bool(dbg) if dbg else conf['DEBUG']
-    config['DEBUG'] = str_to_bool(dbg) if dbg else conf['DEBUG']
+    config['DEBUG'] = conf['DEBUG']
     conf['MODE_WiFi'] = mode if mode else conf['MODE_WiFi']
+    config['MODE_WiFi'] = conf['MODE_WiFi']
     conf['ssid'] = ssid if ssid else conf['ssid']
+    config['ssid'] = conf['ssid']
     conf['wf_pass'] = pssw if pssw else conf['wf_pass']
+    config['wf_pass'] = conf['wf_pass']
     conf['timezone'] = int(tz) if tz else conf['timezone']
-    config['TIMEZONE'] = int(tz) if tz else conf['timezone']
+    config['TIMEZONE'] = conf['timezone']
     conf['DST'] = str_to_bool(dts) if dts else conf['DST']
-    config['DST'] = str_to_bool(dts) if dts else conf['DST']
+    config['DST'] = conf['DST']
     conf['T_WATER'] = tw if tw else conf['T_WATER']
-    config['T_WATER'] = tw if tw else conf['T_WATER']
+    config['T_WATER'] = conf['T_WATER']
     conf['TIME_ON'] = ton if ton else conf['TIME_ON']
-    config['TIME_ON'] = ton if ton else conf['TIME_ON']
+    config['TIME_ON'] = conf['TIME_ON']
     conf['TIME_OFF'] = toff if toff else conf['TIME_OFF']
-    config['TIME_OFF'] = toff if toff else conf['TIME_OFF']
+    config['TIME_OFF'] = conf['TIME_OFF']
     conf['WORK_ALL'] = str_to_bool(wall) if wall else conf['WORK_ALL']
-    config['WORK_ALL'] = str_to_bool(wall) if wall else conf['WORK_ALL']
+    config['WORK_ALL'] = conf['WORK_ALL']
     conf['WORK_TABLE'] = str_to_bool(wtab) if wtab else conf['WORK_TABLE']
-    config['WORK_TABLE'] = str_to_bool(wtab) if wtab else conf['WORK_TABLE']
+    config['WORK_TABLE'] = conf['WORK_TABLE']
     conf['ONE-TIME'] = str_to_bool(otime) if otime else conf['ONE-TIME']
-    config['ONE-TIME'] = str_to_bool(otime) if otime else conf['ONE-TIME']
+    config['ONE-TIME'] = conf['ONE-TIME']
     dprint('Update config.txt file\n', conf)
     gc.collect()                                                        # Очищаем RAM
     # Записываем новый файл config.txt
     with open('config.txt', 'w') as f:
        json.dump(conf, f)
     gc.collect()                                                        # Очищаем RAM
-
+    
+# Обновляем настройки контроллера
+def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
+    if timeon:
+        ton = timeon.split(':')
+        on = (0, 0, 0, int(ton[0]), int(ton[1]), 0, 0, 0,)
+    else:
+        on = None
+    if timeoff:
+        toff = timeoff.split(':')
+        off = (0, 0, 0, int(toff[0]), int(toff[1]), 0, 0, 0,)
+    else:
+        off = None
+    if workmod:
+        wal = 'True' if workmod == 'contin' else 'False'
+        wtb = 'True' if workmod == 'schedule' else 'False'
+        wot = 'True' if workmod == 'onetime' else 'False'
+        if workmod == 'offall':
+            wal, wtb, wol = 'False', 'False', 'False'
+    else:
+        wal, wtb, wot = None, None, None
+    if tempw:
+        t = round(float(tempw), 1)
+    update_config(tw=t, ton=on, toff=off, wall=wal, 
+                    wtab=wtb, otime=wot)
 
 def require_auth(func):
     def auth(req, resp):
@@ -286,8 +315,8 @@ def index(req, resp):
                 .format(t[0], t[1], t[2], t[3], t[4]))
     yield from resp.awrite('<p>Time zone: {}</p>'.format(config['TIMEZONE']))
     yield from resp.awrite('<p>DST: {}</p>'.format(dts))
-    yield from resp.awrite('<p>Set: {:.2f}\'C</p>'.format(config['T_WATER']))
-    yield from resp.awrite('<p>Room: {:.2f}\'C</p>'.format(config['TEMP']))
+    yield from resp.awrite('<p>Temp Set: {:.1f}\'C</p>'.format(config['T_WATER']))
+    yield from resp.awrite('<p>Water temp: {:.1f}\'C</p>'.format(config['TEMP']))
     yield from resp.awrite(div_end)
     yield from resp.awrite(http_footer)
 
@@ -302,12 +331,9 @@ def admin(req, resp):
         yield from req.read_form_data()
         form = req.form
         # Setting the operating mode
-        if 'work_mode' and 'time_off' and 'time_on' in list(form.keys()):
-            pass
-            #update_config(ton=None, toff=None, wall=None, wtab= None, otime=None)
-            #form['work_mode']
-            #form['time_off']
-            #form['time_on']
+        if 'work_mode' and 'time_off' and 'time_on' and 'temp' in list(form.keys()):
+            setting_update(form['time_on'], form['time_off'], form['temp'], form['work_mode'])
+            yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Setting the operating mode update', div_end))
         # Setting WiFi
         elif 'wifi'and 'ssid'and 'pasw' in list(form.keys()):
             update_config(mode=form['wifi'], ssid=form['ssid'], pssw=form['pasw'])
@@ -319,11 +345,10 @@ def admin(req, resp):
             yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Setting date and time update', div_end))
         # Chenge password
         elif 'login' and'repassw' and 'passw' in list(form.keys()):
-            if form['passw'] == form['repassw']:
-                if setroot(form['login'], form['passw']):
-                    yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password update', div_end))
-                else:
-                    yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password not updata', div_end))
+            if form['passw'] == form['repassw'] and setroot(form['login'], form['passw']):
+                yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password update', div_end))
+            else:
+                yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password not update', div_end))
         # Debug mode
         elif 'debug' in list(form.keys()):
             update_config(dbg=form['debug'])
@@ -361,13 +386,13 @@ def read_set(req, resp):
         if i[0] == 'wf_pass':
             yield from resp.awrite('<p>Wi-Fi Passwd: {}</p>'.format(i[1]))
         if i[0] == 'T_WATER':
-            yield from resp.awrite('<p>Water temp set: {}\'C</p>'.format(i[1]))
+            yield from resp.awrite('<p>Temp set: {}\'C</p>'.format(i[1]))
         if i[0] == 'DEBUG':
             yield from resp.awrite('<p>Debug mode: {}</p>'.format(on_off))
         if i[0] == 'timezone':
             yield from resp.awrite('<p>Time zone: {}</p>'.format(i[1]))
         if i[0] == 'DST':
-            yield from resp.awrite('<p>Daylight saving time: {}</p>'.format(on_off))
+            yield from resp.awrite('<p>DST: {}</p>'.format(on_off))
         if i[0] == 'TIME_ON':
             yield from resp.awrite('<p>On time: {:0>2d}:{:0>2d}</p>'.format(i[1][3], i[1][4]))
         if i[0] == 'TIME_OFF':
@@ -375,14 +400,14 @@ def read_set(req, resp):
         if i[0] == 'WORK_ALL':
             yield from resp.awrite('<p>Continuous work: {}</p>'.format(on_off))
         if i[0] == 'WORK_TABLE':
-            yield from resp.awrite('<p>Scheduled operation: {}</p>'.format(on_off))
+            yield from resp.awrite('<p>Scheduled operat: {}</p>'.format(on_off))
         if i[0] == 'ONE-TIME':
-            yield from resp.awrite('<p>One-time activation: {}</p>'.format(on_off))
+            yield from resp.awrite('<p>One-time activat: {}</p>'.format(on_off))
     yield from resp.awrite('</div>')
     yield from resp.awrite(http_footer)
     gc.collect()                                                        # Очищаем RAM
 
-
+# Запрос значения или установка нового значения температуры
 @app.route('/api/v1/temp')
 @require_auth
 def temp(req, resp):
@@ -393,10 +418,83 @@ def temp(req, resp):
     elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/temp?temp=56.60
         req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/temp/300.60
         try:
-            req_form = round(float(req.form['temp']), 2)
-        except KeyError:
-            req_form = 'Error'
-        except ValueError:
-            req_form = req.form['temp']
+            t = req.form['temp']
+        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+            t = None
+        setting_update(tempw=t)
+
+# Рестарт контроллерра
+@app.route('/api/v1/reset')
+@require_auth
+def reset_control(req, resp):
+    gc.collect()                                                        # Очищаем RAM
+    if req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/reset?reset=1 или ?reset=1
+        req.parse_qs()       # TEST curl -s -X POST -v http://192.168.0.16/api/v1/reser/ON или reset/1
+        try:
+            r = req.form['reset']
+        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+            r = None
+        if r == 'ON' or r == '1':
+            reset_machine()
+
+# Запрос значения или установка постоянной работы/выключения контроллера
+@app.route('/api/v1/wall')
+@require_auth
+def setwall(req, resp):
+    gc.collect()                                                        # Очищаем RAM
+    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wall
+        out = 'ON' if config['WORK_ALL'] else 'OFF'
         yield from picoweb.start_response(resp)
-        yield from resp.awrite('{}'.format(req_form))
+        yield from resp.awrite(out)
+    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wall?wall=1/{0} или ?wall=ON/{OFF}
+        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wall/1{0} или wall/ON{OFF}
+        try:
+            wl = req.form['wall']
+        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+            wl = None
+        if wl == 'ON' or wl == '1':
+            setting_update(workmod='contin')
+        elif wl == 'OFF' or wl == '0':
+            setting_update(workmod='offall')
+
+# Запрос значения или установка работы/выключения контроллера по расписанию
+@app.route('/api/v1/wtab')
+@require_auth
+def setwtab(req, resp):
+    gc.collect()                                                        # Очищаем RAM
+    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wtab
+        out = 'ON' if config['WORK_TABLE'] else 'OFF'
+        yield from picoweb.start_response(resp)
+        yield from resp.awrite(out)
+    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wtab?wtab=1/{0} или ?wtab=ON/{OFF}
+        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wtab/1{0} или wtab/ON{OFF}
+        try:
+            wt = req.form['wtab']
+        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+            wt = None
+        if wt == 'ON' or wt == '1':
+            setting_update(workmod='schedule')
+        elif wt == 'OFF' or wt == '0':
+            setting_update(workmod='offall')
+        
+        
+# Запрос значения или единоразовое включение/выключение контроллера в заданное время
+@app.route('/api/v1/otime')
+@require_auth
+def setotime(req, resp):
+    gc.collect()                                                        # Очищаем RAM
+    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wtab
+        out = 'ON' if config['ONE-TIME'] else 'OFF'
+        yield from picoweb.start_response(resp)
+        yield from resp.awrite(out)
+    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wtab?wtab=1/{0} или ?wtab=ON/{OFF}
+        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wtab/1{0} или wtab/ON{OFF}
+        try:
+            ot = req.form['otime']
+        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+            ot = None
+        if ot == 'ON' or ot == '1':
+            setting_update(workmod='onetime')
+        elif ot == 'OFF' or ot == '0':
+            setting_update(workmod='offall')
+
