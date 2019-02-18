@@ -143,9 +143,6 @@ reset_control = """<form action='admin' method='POST'>
                     </fieldset>
                 </form>"""
 
-set_update = 'have been updated'
-err_update = 'update error'
-
 http_footer = """</body>
                 <footer class="footer">
                     &copy; 2019, <a href="https://www.facebook.com/Syslighstar" target="_blank">SYSLIGHSTAR</a>
@@ -158,12 +155,11 @@ def dprint(*args):
     if config['DEBUG']:
         print(*args)
 
-
 # Шифруем пароль и логин
 def setpasswd(login:str, passwd:str) -> str:
     return str(hexlify(sha256(str(passwd+login).encode()).digest()))
 
-
+# Установка нового пароля администратора
 def setroot(login:str, passw:str):
     dprint('Update root.txt file')
     passwd = setpasswd(login, passw)
@@ -186,7 +182,8 @@ def str_to_bool(s):
          return False
     else:
          raise ValueError
-         
+
+# Рестарт контроллера
 def reset_machine():
     reset()
 
@@ -196,6 +193,20 @@ def read_config():
     with open('config.txt', 'r') as f:
         return json.loads(f.read())
 
+# Устанавливаем, обновляем дату и время
+def datetime_update(ntp, data, ntime):
+    dprint(config['RTC'].datetime())
+    if str_to_bool(ntp):
+        config['NTP_UPDATE'] = False
+        config['RTC'].set_zone = config['TIMEZONE']
+        config['RTC'].settime('ntp')
+        config['NTP_UPDATE'] = True
+        dprint('Setting time by NTP server...')
+    elif not str_to_bool(ntp) and data and ntime:
+        d = data.split('-')
+        t = ntime.split(':')
+        config['RTC'].datetime((int(d[0]), int(d[1]), int(d[2]), int(t[0]), int(t[1]), 0, 0, 0))
+        dprint('Manual time setting...')
 
 # Обновлем config.txt
 def update_config(dbg=None, mode=None, ssid=None, pssw=None, tz=None, \
@@ -206,17 +217,26 @@ def update_config(dbg=None, mode=None, ssid=None, pssw=None, tz=None, \
         gc.collect()                                                    # Очищаем RAM
     # Обновляем настройки полученные из файла config.txt
     conf['DEBUG'] = str_to_bool(dbg) if dbg else conf['DEBUG']
+    config['DEBUG'] = str_to_bool(dbg) if dbg else conf['DEBUG']
     conf['MODE_WiFi'] = mode if mode else conf['MODE_WiFi']
-    conf['ssid'] = ssid if ssid else conf['ssid']   
+    conf['ssid'] = ssid if ssid else conf['ssid']
     conf['wf_pass'] = pssw if pssw else conf['wf_pass']
-    conf['timezone'] = tz if tz else conf['timezone']
+    conf['timezone'] = int(tz) if tz else conf['timezone']
+    config['TIMEZONE'] = int(tz) if tz else conf['timezone']
     conf['DST'] = str_to_bool(dts) if dts else conf['DST']
+    config['DST'] = str_to_bool(dts) if dts else conf['DST']
     conf['T_WATER'] = tw if tw else conf['T_WATER']
+    config['T_WATER'] = tw if tw else conf['T_WATER']
     conf['TIME_ON'] = ton if ton else conf['TIME_ON']
+    config['TIME_ON'] = ton if ton else conf['TIME_ON']
     conf['TIME_OFF'] = toff if toff else conf['TIME_OFF']
+    config['TIME_OFF'] = toff if toff else conf['TIME_OFF']
     conf['WORK_ALL'] = str_to_bool(wall) if wall else conf['WORK_ALL']
+    config['WORK_ALL'] = str_to_bool(wall) if wall else conf['WORK_ALL']
     conf['WORK_TABLE'] = str_to_bool(wtab) if wtab else conf['WORK_TABLE']
+    config['WORK_TABLE'] = str_to_bool(wtab) if wtab else conf['WORK_TABLE']
     conf['ONE-TIME'] = str_to_bool(otime) if otime else conf['ONE-TIME']
+    config['ONE-TIME'] = str_to_bool(otime) if otime else conf['ONE-TIME']
     dprint('Update config.txt file\n', conf)
     gc.collect()                                                        # Очищаем RAM
     # Записываем новый файл config.txt
@@ -277,7 +297,7 @@ def index(req, resp):
 def admin(req, resp):
     yield from picoweb.start_response(resp)
     yield from resp.awrite(http_head)
-    yield from resp.awrite('{}{}<br>{}<br>{}'.format(div_cl_header, href_adm_panel, href_contr_set, div_end))
+    yield from resp.awrite('{}{}<br><br>{}<br>{}'.format(div_cl_header, href_adm_panel, href_contr_set, div_end))
     if req.method == "POST":
         yield from req.read_form_data()
         form = req.form
@@ -295,9 +315,7 @@ def admin(req, resp):
         # Setting date and time
         elif 'ntp' and'time' and 'daylight' and 'date' and 'tzone' in list(form.keys()):
             update_config(tz=form['tzone'], dts=form['daylight'])
-            #form['ntp']
-            #form['time']
-            #form['data']
+            datetime_update(form['ntp'], form['date'], form['time'])
             yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Setting date and time update', div_end))
         # Chenge password
         elif 'login' and'repassw' and 'passw' in list(form.keys()):

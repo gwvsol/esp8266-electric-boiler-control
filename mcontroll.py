@@ -38,11 +38,12 @@ class Main(WiFiControl):
         self.config['IP'] = None                        # Дефолтный IP адрес
         self.config['no_wifi'] = True                   # Интернет отключен(значение True)
         self.config['Uptime'] = 0                       # Время работы контроллера
+        self.config['RTC_TIME'] = (0, 1, 1, 0, 0, 0, 0, 0) # Дефолтное время
+        self.config['NTP_UPDATE'] = True                # Разрешаем обновление по NTP
         self.config['MemFree'] = None
         self.config['MemAvailab'] = None
         self.config['FREQ'] = None
-        self.config['RTC_TIME'] = (0, 1, 1, 0, 0, 0, 0, 0)
-        self.config['NTP_UPDATE'] = True
+        
         self.config['TEMP'] = None
 
         # Eсли нет файла config.txt или нажата кнопка сброса в дефолт, создаем файл config.txt
@@ -78,10 +79,11 @@ class Main(WiFiControl):
         elif self.config['MODE_WiFi'] == 'ST':
             self._sta_if = network.WLAN(network.STA_IF)
             self.config['WIFI'] = self._sta_if
-        # Настройка для работы с RTC, OLED и барометром на BME280
-        self.rtc = DS3231(self.i2c, self.config['ADR_RTC'], self.config['TIMEZONE'])
+        # Настройка для работы с RTC
+        self.config['RTC'] = DS3231(self.i2c, self.config['ADR_RTC'], self.config['TIMEZONE'])
+        self.rtc = self.config['RTC']
         self.temp = READ_TERM()
-
+        
         loop = asyncio.get_event_loop()
         loop.create_task(self._heartbeat())                             # Индикация подключения WiFi
         loop.create_task(self._dataupdate())                            # Обновление информации и часы
@@ -111,7 +113,7 @@ class Main(WiFiControl):
             # Если у нас режим подключения к точке доступа и если есть соединение, подводим часы по NTP
             if self.config['MODE_WiFi'] == 'ST' and not self.config['no_wifi']:
                 # Подводка часов по NTP каждые сутки в 22:00:00
-                if rtc[3] == 23 and rtc[4] == 41 and rtc[5] < 3 and self.config['NTP_UPDATE']:
+                if rtc[3] == 22 and rtc[4] == 5 and rtc[5] < 3 and self.config['NTP_UPDATE']:
                         self.config['NTP_UPDATE'] = False
                         self.rtc.settime('ntp')
                         await asyncio.sleep(1)
