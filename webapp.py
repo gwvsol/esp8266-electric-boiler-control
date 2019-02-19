@@ -274,7 +274,7 @@ def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
 
     update_config(tw=t, ton=on, toff=off, wall=wal, wtab=wtb, otime=wot)
 
-
+# Аутентификация пользователя
 def require_auth(func):
     def auth(req, resp):
         auth = req.headers.get(b"Authorization")
@@ -298,8 +298,8 @@ def require_auth(func):
             yield from resp.awrite(http_footer)
     return auth
 
-
-@app.route('/')
+# Web интерфей контроллера, используется для настройки и управления
+@app.route('/') # Основные параметра работы контроллера
 @require_auth
 def index(req, resp):
     gc.collect()                                                        # Очищаем RAM
@@ -321,7 +321,7 @@ def index(req, resp):
     yield from resp.awrite(div_end)
     yield from resp.awrite(http_footer)
 
-
+# Админ панель
 @app.route('/admin')
 @require_auth
 def admin(req, resp):
@@ -367,7 +367,7 @@ def admin(req, resp):
     yield from resp.awrite(http_footer)
     gc.collect()                                                        # Очищаем RAM
 
-
+# Чтения основных настроек контроллера из файла config.txt
 @app.route('/read')
 @require_auth
 def read_set(req, resp):
@@ -408,7 +408,7 @@ def read_set(req, resp):
     yield from resp.awrite(http_footer)
     gc.collect()                                                        # Очищаем RAM
 
-
+# API интерфейс для работы с системой умный домы, напрмер OpenHab
 # Запрос значения или установка нового значения температуры
 @app.route('/api/v1/temp')
 @require_auth
@@ -426,7 +426,7 @@ def temp(req, resp):
         setting_update(tempw=t)
 
 
-# Запрос значения или установка постоянной работы/выключения контроллера
+# Запрос значения или установка постоянной работы/выключения системы обогрева воды
 @app.route('/api/v1/wall')
 @require_auth
 def setwall(req, resp):
@@ -448,7 +448,7 @@ def setwall(req, resp):
         setting_update(workmod=sett)
 
 
-# Запрос значения или установка работы/выключения контроллера по расписанию
+# Запрос значения или установка работы/выключения системы обогрева воды
 @app.route('/api/v1/wtab')
 @require_auth
 def setwtab(req, resp):
@@ -470,7 +470,7 @@ def setwtab(req, resp):
         setting_update(workmod=sett)
 
 
-# Запрос значения или единоразовое включение/выключение контроллера в заданное время
+# Запрос значения или единоразовое включение/выключения системы обогрева воды
 @app.route('/api/v1/otime')
 @require_auth
 def setotime(req, resp):
