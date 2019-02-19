@@ -9,6 +9,7 @@ gc.collect()                                                            # Очи
 
 app = picoweb.WebApp(__name__)
 
+
 http_head = """<!DOCTYPE html>
         <html>
         <head>
@@ -53,19 +54,14 @@ http_head = """<!DOCTYPE html>
         </head>
         <body>
         <h2><a class="menu" href="/">HOME</a></h2>"""
-
 href_contr_set = '<a class="login" href="read">CONTROLLER SETTINGS</a>'
 href_adm_panel = '<a class="login" href="admin">ADMIN PANEL</a>'
-
 div_cl_header = '<div class="header">'
 div_cl_info = '<div class="info">'
 div_cl_admin = '<div class = "admin">'
 div_end = '</div>'
-
-span_main_param = '<span>MAIN PARAMETERS</span>'
 span_boler_adm = '<span>Boiler Control Admin</span>'
 span_err_pasw = '<span>Error Login<br>Close the browser, restart it,<br>and then try to log in again</span>'
-
 wifi_form = """<form action='admin' method='POST'>
                     <fieldset>
                         <legend>Setting WiFi</legend>
@@ -76,7 +72,6 @@ wifi_form = """<form action='admin' method='POST'>
                         <p><input type="submit" value="Set WiFi"></p>
                     </fieldset>
                </form>"""
-               
 passw_form = """<form action='admin' method='POST'>
                     <fieldset>
                         <legend>Chenge password</legend>
@@ -86,7 +81,6 @@ passw_form = """<form action='admin' method='POST'>
                         <p><input type="submit" value="Сhange password"></p>
                     </fieldset>
                 </form>"""
-                
 date_set = """<form action='admin' method='POST'>
                 <fieldset>
                     <legend>Setting date and time</legend>
@@ -113,7 +107,6 @@ date_set = """<form action='admin' method='POST'>
                     <p><input type="submit" value="Set Date&Time"></p>
                 </fieldset>
             </form>"""
-            
 time_work_set = """<form action='admin' method='POST'>
                     <fieldset>
                         <legend>Setting the operating mode</legend>
@@ -128,7 +121,6 @@ time_work_set = """<form action='admin' method='POST'>
                     <p><input type="submit" value="Set Time&Mode"></p>
                     </fieldset>
                 </form>"""
-                
 debug_mode = """<form action='admin' method='POST'>
                     <fieldset>
                         <legend>Debug mode</legend>
@@ -137,7 +129,6 @@ debug_mode = """<form action='admin' method='POST'>
                         <p><input type="submit" value="Set Debug Mode"></p>
                     </fieldset>
                 </form>"""
-                
 reset_control = """<form action='admin' method='POST'>
                     <fieldset>
                         <legend>Restarting the controller</legend>
@@ -145,7 +136,6 @@ reset_control = """<form action='admin' method='POST'>
                         <p><input type="submit" value="Restart"></p>
                     </fieldset>
                 </form>"""
-
 http_footer = """</body>
                 <footer class="footer">
                     &copy; 2019, <a href="https://www.facebook.com/Syslighstar" target="_blank">SYSLIGHSTAR</a>
@@ -158,9 +148,11 @@ def dprint(*args):
     if config['DEBUG']:
         print(*args)
 
+
 # Шифруем пароль и логин
 def setpasswd(login:str, passwd:str) -> str:
     return str(hexlify(sha256(str(passwd+login).encode()).digest()))
+
 
 # Установка нового пароля администратора
 def setroot(login:str, passw:str):
@@ -177,6 +169,7 @@ def setroot(login:str, passw:str):
         gc.collect()                                                    # Очищаем RAM
         return False
 
+
 # Преобразуем строку в bool
 def str_to_bool(s):
     if s == 'True':
@@ -186,14 +179,17 @@ def str_to_bool(s):
     else:
          raise ValueError
 
+
 # Рестарт контроллера
 def reset_machine():
     reset()
+
 
 # Читаем config.txt
 def read_config():
     with open('config.txt', 'r') as f:
         return json.loads(f.read())
+
 
 # Устанавливаем, обновляем дату и время
 def datetime_update(ntp, data, ntime):
@@ -209,6 +205,7 @@ def datetime_update(ntp, data, ntime):
         t = ntime.split(':')
         config['RTC'].datetime((int(d[0]), int(d[1]), int(d[2]), int(t[0]), int(t[1]), 0, 0, 0))
         dprint('Manual time setting...')
+
 
 # Обновлем config.txt
 def update_config(dbg=None, mode=None, ssid=None, pssw=None, tz=None, \
@@ -248,7 +245,8 @@ def update_config(dbg=None, mode=None, ssid=None, pssw=None, tz=None, \
     with open('config.txt', 'w') as f:
        json.dump(conf, f)
     gc.collect()                                                        # Очищаем RAM
-    
+
+
 # Обновляем настройки контроллера
 def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
     if timeon:
@@ -266,13 +264,16 @@ def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
         wtb = 'True' if workmod == 'schedule' else 'False'
         wot = 'True' if workmod == 'onetime' else 'False'
         if workmod == 'offall':
-            wal, wtb, wol = 'False', 'False', 'False'
+            wal, wtb, wot = 'False', 'False', 'False'
     else:
         wal, wtb, wot = None, None, None
     if tempw:
         t = round(float(tempw), 1)
-    update_config(tw=t, ton=on, toff=off, wall=wal, 
-                    wtab=wtb, otime=wot)
+    else:
+        t = None
+
+    update_config(tw=t, ton=on, toff=off, wall=wal, wtab=wtb, otime=wot)
+
 
 def require_auth(func):
     def auth(req, resp):
@@ -407,6 +408,7 @@ def read_set(req, resp):
     yield from resp.awrite(http_footer)
     gc.collect()                                                        # Очищаем RAM
 
+
 # Запрос значения или установка нового значения температуры
 @app.route('/api/v1/temp')
 @require_auth
@@ -423,19 +425,6 @@ def temp(req, resp):
             t = None
         setting_update(tempw=t)
 
-# Рестарт контроллерра
-@app.route('/api/v1/reset')
-@require_auth
-def reset_control(req, resp):
-    gc.collect()                                                        # Очищаем RAM
-    if req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/reset?reset=1 или ?reset=1
-        req.parse_qs()       # TEST curl -s -X POST -v http://192.168.0.16/api/v1/reser/ON или reset/1
-        try:
-            r = req.form['reset']
-        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
-            r = None
-        if r == 'ON' or r == '1':
-            reset_machine()
 
 # Запрос значения или установка постоянной работы/выключения контроллера
 @app.route('/api/v1/wall')
@@ -453,9 +442,11 @@ def setwall(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             wl = None
         if wl == 'ON' or wl == '1':
-            setting_update(workmod='contin')
+            sett = 'contin'
         elif wl == 'OFF' or wl == '0':
-            setting_update(workmod='offall')
+            sett = 'offall'
+        setting_update(workmod=sett)
+
 
 # Запрос значения или установка работы/выключения контроллера по расписанию
 @app.route('/api/v1/wtab')
@@ -473,11 +464,12 @@ def setwtab(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             wt = None
         if wt == 'ON' or wt == '1':
-            setting_update(workmod='schedule')
+            sett = 'schedule'
         elif wt == 'OFF' or wt == '0':
-            setting_update(workmod='offall')
-        
-        
+            sett = 'offall'
+        setting_update(workmod=sett)
+
+
 # Запрос значения или единоразовое включение/выключение контроллера в заданное время
 @app.route('/api/v1/otime')
 @require_auth
@@ -494,7 +486,8 @@ def setotime(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             ot = None
         if ot == 'ON' or ot == '1':
-            setting_update(workmod='onetime')
+            sett = 'onetime'
         elif ot == 'OFF' or ot == '0':
-            setting_update(workmod='offall')
+            sett = 'offall'
+        setting_update(workmod=sett)
 
