@@ -113,24 +113,17 @@ time_work_set = """<form action='admin' method='POST'>
                         <input type="number" name="temp" size="4" min="35" max="85" step="5" value="40.0">'C</p>
                         <p><input type="radio" name="work_mode" value="contin">Continuous work<br>
                             <input type="radio" name="work_mode" value="schedule">On schedule<br>
-                            <input type="radio" name="work_mode" checked value="onetime">One-time activation</p>
+                            <input type="radio" name="work_mode" checked value="onetime">One-time activation<br>
+                            <input type="radio" name="work_mode" value="offall">Turn off heating boiler</p>
                         <p>Time<br>
                         <input type="time" name="time_on" required>On<br></p>
                         <p><input type="time" name="time_off" required>Off<br></p>
                     <p><input type="submit" value="Set Time&Mode"></p>
                     </fieldset>
                 </form>"""
-debug_mode = """<form action='admin' method='POST'>
-                    <fieldset>
-                        <legend>Debug mode</legend>
-                        <p><input type="radio" name="debug" value="True">ON<br>
-                            <input type="radio" name="debug" checked value="False">OFF</p>
-                        <p><input type="submit" value="Set Debug Mode"></p>
-                    </fieldset>
-                </form>"""
 reset_control = """<form action='admin' method='POST'>
                     <fieldset>
-                        <legend>Restarting the controller</legend>
+                        <legend>Restart controller</legend>
                         <input type="hidden" name="reset" value="True">
                         <p><input type="submit" value="Restart"></p>
                     </fieldset>
@@ -178,12 +171,28 @@ def str_to_bool(s):
     else:
          raise ValueError
 
+
 # Преобразуем bool в строку
 def bool_to_str(s):
     if s == True:
          return 'ON'
     elif s == False:
          return 'OFF'
+
+
+# Вспомогальтельный метод для API wall, wtab, otime
+def set_wall_wtab_otime(dvar, mode):
+    if dvar == 'ON' or dvar == '1':
+        if mode == 'wall':
+            out = 'contin'
+        elif mode == 'wtab':
+            out = 'schedule'
+        elif mode == 'otime':
+            out = 'onetime'
+    elif dvar == 'OFF' or dvar == '0':
+        out = 'offall'
+    gc.collect()                                                        # Очищаем RAM
+    return out
 
 
 # Рестарт контроллера
@@ -214,15 +223,13 @@ def datetime_update(ntp, data, ntime):
 
 
 # Обновлем config.txt
-def update_config(dbg=None, mode=None, ssid=None, pssw=None, tz=None, \
+def update_config(mode=None, ssid=None, pssw=None, tz=None, \
                     dts=None, tw=None, ton=None, toff=None, wall=None, 
                     wtab= None, otime=None):
     with open('config.txt', 'r') as f:
         conf = json.loads(f.read())
         gc.collect()                                                    # Очищаем RAM
     # Обновляем настройки полученные из файла config.txt
-    conf['DEBUG'] = str_to_bool(dbg) if dbg else conf['DEBUG']
-    config['DEBUG'] = conf['DEBUG']
     conf['MODE_WiFi'] = mode if mode else conf['MODE_WiFi']
     config['MODE_WiFi'] = conf['MODE_WiFi']
     conf['ssid'] = ssid if ssid else conf['ssid']
@@ -280,6 +287,7 @@ def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
 
     update_config(tw=t, ton=on, toff=off, wall=wal, wtab=wtb, otime=wot)
 
+
 # Аутентификация пользователя
 def require_auth(func):
     def auth(req, resp):
@@ -303,6 +311,7 @@ def require_auth(func):
             yield from resp.awrite('{}{}{}'.format(div_cl_header, span_err_pasw, div_end))
             yield from resp.awrite(http_footer)
     return auth
+
 
 # Web интерфей контроллера, используется для настройки и управления
 @app.route('/') # Основные параметра работы контроллера
@@ -331,6 +340,7 @@ def index(req, resp):
     yield from resp.awrite('<p>Off time: {:0>2d}:{:0>2d}</p>'.format(toff[3], toff[4]))
     yield from resp.awrite(div_end)
     yield from resp.awrite(http_footer)
+
 
 # Админ панель
 @app.route('/admin')
@@ -361,20 +371,14 @@ def admin(req, resp):
                 yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password update', div_end))
             else:
                 yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password not update', div_end))
-        # Debug mode
-        elif 'debug' in list(form.keys()):
-            update_config(dbg=form['debug'])
-            yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Debug mode update', div_end))
-            yield from resp.awrite('{}{}{}'.format(div_cl_info, 'To apply the settings', div_end))
-            yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Reboot the controller', div_end))
         # Restarting the controller
         elif 'reset' in list(form.keys()):
             reset_machine()
     if req.method == "GET":
-        yield from resp.awrite('{}{}{}<br>{}{}<br>{}<br>{}<br>{}<br>{}<br>{}{}'\
+        yield from resp.awrite('{}{}{}<br>{}{}<br>{}<br>{}<br>{}<br>{}{}'\
                     .format(div_cl_header, span_boler_adm, div_end, \
                     div_cl_admin, time_work_set, wifi_form, date_set, \
-                    passw_form, debug_mode, reset_control, div_end))
+                    passw_form, reset_control, div_end))
     yield from resp.awrite(http_footer)
     gc.collect()                                                        # Очищаем RAM
 
@@ -422,11 +426,7 @@ def setwall(req, resp):
             wl = req.form['wall']
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             wl = None
-        if wl == 'ON' or wl == '1':
-            sett = 'contin'
-        elif wl == 'OFF' or wl == '0':
-            sett = 'offall'
-        setting_update(workmod=sett)
+        setting_update(workmod=set_wall_wtab_otime(wl, 'wall'))
 
 
 # Запрос значения или установка работы/выключения системы обогрева воды
@@ -444,11 +444,7 @@ def setwtab(req, resp):
             wt = req.form['wtab']
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             wt = None
-        if wt == 'ON' or wt == '1':
-            sett = 'schedule'
-        elif wt == 'OFF' or wt == '0':
-            sett = 'offall'
-        setting_update(workmod=sett)
+        setting_update(workmod=set_wall_wtab_otime(wt, 'wtab'))
 
 
 # Запрос значения или единоразовое включение/выключения системы обогрева воды
@@ -466,9 +462,5 @@ def setotime(req, resp):
             ot = req.form['otime']
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             ot = None
-        if ot == 'ON' or ot == '1':
-            sett = 'onetime'
-        elif ot == 'OFF' or ot == '0':
-            sett = 'offall'
-        setting_update(workmod=sett)
+        setting_update(workmod=set_wall_wtab_otime(ot, 'otime'))
 
