@@ -19,8 +19,8 @@ http_head = """<!DOCTYPE html>
         <style> 
         html { font-family: 'Lato', Calibri, Arial, sans-serif;
                height: 100%; }
-        body { background: #ddd;
-            color: #333; }
+        body { background-color: #d6cde4;
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%235b4848' fill-opacity='0.4' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E"); }
         .header { width: 100%;
             padding-top: .7em;
             padding-bottom: .7em;
@@ -54,7 +54,6 @@ http_head = """<!DOCTYPE html>
         </head>
         <body>
         <h2><a class="menu" href="/">HOME</a></h2>"""
-href_contr_set = '<a class="login" href="read">CONTROLLER SETTINGS</a>'
 href_adm_panel = '<a class="login" href="admin">ADMIN PANEL</a>'
 div_cl_header = '<div class="header">'
 div_cl_info = '<div class="info">'
@@ -179,6 +178,13 @@ def str_to_bool(s):
     else:
          raise ValueError
 
+# Преобразуем bool в строку
+def bool_to_str(s):
+    if s == True:
+         return 'ON'
+    elif s == False:
+         return 'OFF'
+
 
 # Рестарт контроллера
 def reset_machine():
@@ -300,24 +306,29 @@ def require_auth(func):
 
 # Web интерфей контроллера, используется для настройки и управления
 @app.route('/') # Основные параметра работы контроллера
-@require_auth
 def index(req, resp):
     gc.collect()                                                        # Очищаем RAM
     t = config['RTC_TIME']
-    dts = 'ON' if config['DST'] == True else 'OFF'
+    ton = config['TIME_ON']
+    toff = config['TIME_OFF']
     yield from picoweb.start_response(resp)
     yield from resp.awrite(http_head)
-    yield from resp.awrite('{}{}<br><br>{}<br>{}'\
-            .format(div_cl_header, href_adm_panel, href_contr_set, div_end))
+    yield from resp.awrite('{}{}<br>{}'\
+            .format(div_cl_header, href_adm_panel, div_end))
     yield from resp.awrite(div_cl_info)
     if config['DEBUG']:
         yield from resp.awrite('<p>IP: {}</p>'.format(config['IP']))
     yield from resp.awrite('<p>{:0>2d}-{:0>2d}-{:0>2d} {:0>2d}:{:0>2d}</p>'\
                 .format(t[0], t[1], t[2], t[3], t[4]))
     yield from resp.awrite('<p>Time zone: {}</p>'.format(config['TIMEZONE']))
-    yield from resp.awrite('<p>DST: {}</p>'.format(dts))
+    yield from resp.awrite('<p>DST: {}</p>'.format(bool_to_str(config['DST'])))
     yield from resp.awrite('<p>Temp Set: {:.1f}\'C</p>'.format(config['T_WATER']))
     yield from resp.awrite('<p>Water temp: {:.1f}\'C</p>'.format(config['TEMP']))
+    yield from resp.awrite('<p>Continuous work: {}</p>'.format(bool_to_str(config['WORK_ALL'])))
+    yield from resp.awrite('<p>Scheduled operat: {}</p>'.format(bool_to_str(config['WORK_TABLE'])))
+    yield from resp.awrite('<p>One-time activat: {}</p>'.format(bool_to_str(config['ONE-TIME'])))
+    yield from resp.awrite('<p>On time: {:0>2d}:{:0>2d}</p>'.format(ton[3], ton[4]))
+    yield from resp.awrite('<p>Off time: {:0>2d}:{:0>2d}</p>'.format(toff[3], toff[4]))
     yield from resp.awrite(div_end)
     yield from resp.awrite(http_footer)
 
@@ -327,7 +338,7 @@ def index(req, resp):
 def admin(req, resp):
     yield from picoweb.start_response(resp)
     yield from resp.awrite(http_head)
-    yield from resp.awrite('{}{}<br><br>{}<br>{}'.format(div_cl_header, href_adm_panel, href_contr_set, div_end))
+    yield from resp.awrite('{}{}<br>{}'.format(div_cl_header, href_adm_panel, div_end))
     if req.method == "POST":
         yield from req.read_form_data()
         form = req.form
@@ -367,49 +378,9 @@ def admin(req, resp):
     yield from resp.awrite(http_footer)
     gc.collect()                                                        # Очищаем RAM
 
-# Чтения основных настроек контроллера из файла config.txt
-@app.route('/read')
-@require_auth
-def read_set(req, resp):
-    yield from picoweb.start_response(resp)
-    yield from resp.awrite(http_head)
-    yield from resp.awrite('{}{}<br><br>{}'\
-            .format(div_cl_header, href_adm_panel, div_end))
-    yield from resp.awrite('<div class="info">')
-    conf = list(read_config().items())
-    gc.collect()                                                        # Очищаем RAM
-    for i in conf:
-        on_off = 'ON' if i[1] == True else 'OFF'
-        if i[0] == 'MODE_WiFi':
-            yield from resp.awrite('<p>Wi-Fi Mode: {}</p>'.format(i[1]))
-        if i[0] == 'ssid':
-            yield from resp.awrite('<p>SSID: {}</p>'.format(i[1]))
-        if i[0] == 'wf_pass':
-            yield from resp.awrite('<p>Wi-Fi Passwd: {}</p>'.format(i[1]))
-        if i[0] == 'T_WATER':
-            yield from resp.awrite('<p>Temp set: {}\'C</p>'.format(i[1]))
-        if i[0] == 'DEBUG':
-            yield from resp.awrite('<p>Debug mode: {}</p>'.format(on_off))
-        if i[0] == 'timezone':
-            yield from resp.awrite('<p>Time zone: {}</p>'.format(i[1]))
-        if i[0] == 'DST':
-            yield from resp.awrite('<p>DST: {}</p>'.format(on_off))
-        if i[0] == 'TIME_ON':
-            yield from resp.awrite('<p>On time: {:0>2d}:{:0>2d}</p>'.format(i[1][3], i[1][4]))
-        if i[0] == 'TIME_OFF':
-            yield from resp.awrite('<p>Off time: {:0>2d}:{:0>2d}</p>'.format(i[1][3], i[1][4]))
-        if i[0] == 'WORK_ALL':
-            yield from resp.awrite('<p>Continuous work: {}</p>'.format(on_off))
-        if i[0] == 'WORK_TABLE':
-            yield from resp.awrite('<p>Scheduled operat: {}</p>'.format(on_off))
-        if i[0] == 'ONE-TIME':
-            yield from resp.awrite('<p>One-time activat: {}</p>'.format(on_off))
-    yield from resp.awrite('</div>')
-    yield from resp.awrite(http_footer)
-    gc.collect()                                                        # Очищаем RAM
 
 # API интерфейс для работы с системой умный домы, напрмер OpenHab
-# Запрос значения или установка нового значения температуры
+# Запрос значения фактической температуры или установка нового значения температуры
 @app.route('/api/v1/temp')
 @require_auth
 def temp(req, resp):
@@ -417,10 +388,20 @@ def temp(req, resp):
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/temp
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{:.2f}'.format(config['TEMP']))
-    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/temp?temp=56.60
-        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/temp/300.60
+
+
+# Запрос значения установки температуры или задача нового значения
+@app.route('/api/v1/stemp')
+@require_auth
+def temp(req, resp):
+    gc.collect()                                                        # Очищаем RAM
+    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/stemp
+        yield from picoweb.start_response(resp)
+        yield from resp.awrite('{:.2f}'.format(config['T_WATER']))
+    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/stemp?stemp=56.60
+        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/stemp/300.60
         try:
-            t = req.form['temp']
+            t = req.form['stemp']
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             t = None
         setting_update(tempw=t)
@@ -432,7 +413,7 @@ def temp(req, resp):
 def setwall(req, resp):
     gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wall
-        out = 'ON' if config['WORK_ALL'] else 'OFF'
+        out = bool_to_str(config['WORK_ALL'])
         yield from picoweb.start_response(resp)
         yield from resp.awrite(out)
     elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wall?wall=1/{0} или ?wall=ON/{OFF}
@@ -454,7 +435,7 @@ def setwall(req, resp):
 def setwtab(req, resp):
     gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wtab
-        out = 'ON' if config['WORK_TABLE'] else 'OFF'
+        out = bool_to_str(config['WORK_TABLE'])
         yield from picoweb.start_response(resp)
         yield from resp.awrite(out)
     elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wtab?wtab=1/{0} или ?wtab=ON/{OFF}
@@ -476,7 +457,7 @@ def setwtab(req, resp):
 def setotime(req, resp):
     gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wtab
-        out = 'ON' if config['ONE-TIME'] else 'OFF'
+        out = bool_to_str(config['ONE-TIME'])
         yield from picoweb.start_response(resp)
         yield from resp.awrite(out)
     elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wtab?wtab=1/{0} или ?wtab=ON/{OFF}
