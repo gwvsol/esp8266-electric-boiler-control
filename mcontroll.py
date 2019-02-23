@@ -6,6 +6,8 @@ gc.collect()                                                            # Очи
 from i2c_ds3231 import DS3231
 from term_adc import READ_TERM
 from webapp import app
+from webapp import read_config
+from webapp import bool_to_str
 gc.collect()                                                            # Очищаем RAM
 
 # Базовый класс
@@ -43,7 +45,6 @@ class Main(WiFiControl):
         self.config['MemFree'] = None
         self.config['MemAvailab'] = None
         self.config['FREQ'] = None
-        
         self.config['TEMP'] = None
 
         # Eсли нет файла config.txt или нажата кнопка сброса в дефолт, создаем файл config.txt
@@ -57,8 +58,7 @@ class Main(WiFiControl):
             with open('root.txt', 'w') as f:
                 f.write(self.default_web)
         # Читаем настройки из файла config.txt
-        with open('config.txt', 'r') as f:
-            conf = json.loads(f.read())
+        conf = read_config()
         # Обновляем настройки полученные из файла config.txt
         self.config['DEBUG'] = conf['DEBUG']
         self.config['MODE_WiFi'] = conf['MODE_WiFi']    # Режим работы WiFi AP или ST
@@ -104,7 +104,7 @@ class Main(WiFiControl):
 
     async def _dataupdate(self):
         while True:
-            """RTC Update"""
+            # RTC Update
             self.config['RTC_TIME'] = self.rtc.datetime()
             rtc = self.config['RTC_TIME']
             # Проверка летнего или зименего времени каждую минуту в 30с
@@ -118,9 +118,13 @@ class Main(WiFiControl):
                         self.rtc.settime('ntp')
                         await asyncio.sleep(1)
                         self.config['NTP_UPDATE'] = True
-            """Data Update"""
-            self.config['TEMP'] = round(self.temp.value, 2)
-            gc.collect()                                    # Очищаем RAM
+            # Data Update
+            self.config['TEMP'] = round(self.temp.value, 2) # Обновляем температуру воды бойлера
+            gc.collect()                                                # Очищаем RAM
+            if not self.config['WORK_ALL'] and not self.config['WORK_TABLE'] and not self.config['ONE-TIME']:
+                ton = self.config['TIME_ON']
+                toff = self.config['TIME_OFF']
+            else: 
             await asyncio.sleep(1)
 
 
@@ -152,6 +156,8 @@ class Main(WiFiControl):
                 self.config['MemFree'] = str(round(gc.mem_free()/1024, 2))
                 self.config['MemAvailab'] = str(round(gc.mem_alloc()/1024, 2))
                 self.config['FREQ'] = str(freq()/1000000)
+                ton = self.config['TIME_ON']
+                toff = self.config['TIME_OFF']
                 if self.config['MODE_WiFi'] == 'ST':
                     wifi = 'connect' if not self.config['no_wifi'] else 'disconnect'
                 else:
@@ -165,7 +171,13 @@ class Main(WiFiControl):
                 self.dprint('Time: {:0>2d}:{:0>2d}:{:0>2d}'.format(rtc[3], rtc[4], rtc[5]))
                 self.dprint('WiFi:', wifi)
                 self.dprint('IP:', self.config['IP'])
-                self.dprint('TEMP: {:.2f}\'C'.format(self.config['TEMP']))
+                self.dprint('Water temp: {:.2f}\'C'.format(self.config['TEMP']))
+                self.dprint('Temp Set: {:.2f}\'C'.format(self.config['T_WATER']))
+                self.dprint('Continuous work: {}'.format(bool_to_str(self.config['WORK_ALL'])))
+                self.dprint('Scheduled operat: {}'.format(bool_to_str(self.config['WORK_TABLE'])))
+                self.dprint('One-time activat: {}'.format(bool_to_str(self.config['ONE-TIME'])))
+                self.dprint('On time: {:0>2d}:{:0>2d}'.format(ton[3], ton[4]))
+                self.dprint('Off time: {:0>2d}:{:0>2d}'.format(toff[3], toff[4]))
                 self.dprint('MemFree:', '{}Kb'.format(self.config['MemFree']))
                 self.dprint('MemAvailab:', '{}Kb'.format(self.config['MemAvailab']))
                 self.dprint('FREQ:', '{}MHz'.format(self.config['FREQ']))

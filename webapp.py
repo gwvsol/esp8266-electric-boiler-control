@@ -220,6 +220,7 @@ def datetime_update(ntp, data, ntime):
         t = ntime.split(':')
         config['RTC'].datetime((int(d[0]), int(d[1]), int(d[2]), int(t[0]), int(t[1]), 0, 0, 0))
         dprint('Manual time setting...')
+    gc.collect()                                                        # Очищаем RAM
 
 
 # Обновлем config.txt
@@ -262,16 +263,18 @@ def update_config(mode=None, ssid=None, pssw=None, tz=None, \
 
 # Обновляем настройки контроллера
 def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
-    if timeon:
-        ton = timeon.split(':')
-        on = (0, 0, 0, int(ton[0]), int(ton[1]), 0, 0, 0,)
-    else:
-        on = None
-    if timeoff:
-        toff = timeoff.split(':')
-        off = (0, 0, 0, int(toff[0]), int(toff[1]), 0, 0, 0,)
-    else:
-        off = None
+    
+    def on_off(tstr):
+        t = tstr.split(':')
+        if int(t[0]) >= 0 and int(t[0]) <= 23:
+            if int(t[1]) >= 0 and int(t[1]) <= 59:
+                out = (0, 0, 0, int(t[0]), int(t[1]), 0, 0, 0,)
+            else: out = None
+        else: out = None
+        return out
+
+    on = on_off(timeon) if timeon else None
+    off = on_off(timeoff) if timeoff else None
     if workmod:
         wal = 'True' if workmod == 'contin' else 'False'
         wtb = 'True' if workmod == 'schedule' else 'False'
@@ -280,12 +283,9 @@ def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
             wal, wtb, wot = 'False', 'False', 'False'
     else:
         wal, wtb, wot = None, None, None
-    if tempw:
-        t = round(float(tempw), 1)
-    else:
-        t = None
-
+    t = round(float(tempw), 1) if tempw else None
     update_config(tw=t, ton=on, toff=off, wall=wal, wtab=wtb, otime=wot)
+    gc.collect()                                                        # Очищаем RAM
 
 
 # Аутентификация пользователя
@@ -340,7 +340,8 @@ def index(req, resp):
     yield from resp.awrite('<p>Off time: {:0>2d}:{:0>2d}</p>'.format(toff[3], toff[4]))
     yield from resp.awrite(div_end)
     yield from resp.awrite(http_footer)
-
+    gc.collect()                                                        # Очищаем RAM
+    
 
 # Админ панель
 @app.route('/admin')
@@ -349,6 +350,7 @@ def admin(req, resp):
     yield from picoweb.start_response(resp)
     yield from resp.awrite(http_head)
     yield from resp.awrite('{}{}<br>{}'.format(div_cl_header, href_adm_panel, div_end))
+    gc.collect()                                                         # Очищаем RAM
     if req.method == "POST":
         yield from req.read_form_data()
         form = req.form
@@ -392,6 +394,7 @@ def temp(req, resp):
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/temp
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{:.2f}'.format(config['TEMP']))
+    gc.collect()                                                        # Очищаем RAM
 
 
 # Запрос значения установки температуры или задача нового значения
@@ -409,6 +412,7 @@ def temp(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             t = None
         setting_update(tempw=t)
+    gc.collect()                                                        # Очищаем RAM
 
 
 # Запрос значения или установка постоянной работы/выключения системы обогрева воды
@@ -427,6 +431,7 @@ def setwall(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             wl = None
         setting_update(workmod=set_wall_wtab_otime(wl, 'wall'))
+    gc.collect()                                                        # Очищаем RAM
 
 
 # Запрос значения или установка работы/выключения системы обогрева воды
@@ -445,6 +450,7 @@ def setwtab(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             wt = None
         setting_update(workmod=set_wall_wtab_otime(wt, 'wtab'))
+    gc.collect()                                                        # Очищаем RAM
 
 
 # Запрос значения или единоразовое включение/выключения системы обогрева воды
@@ -463,4 +469,42 @@ def setotime(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             ot = None
         setting_update(workmod=set_wall_wtab_otime(ot, 'otime'))
+    gc.collect()                                                        # Очищаем RAM
 
+
+# Запрос значения или единоразовое включение/выключения системы обогрева воды
+@app.route('/api/v1/timeon')
+@require_auth
+def settimeon(req, resp):
+    gc.collect()                                                        # Очищаем RAM
+    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/timeon
+        ton = config['TIME_ON']
+        yield from picoweb.start_response(resp)
+        yield from resp.awrite('{:0>2d}:{:0>2d}'.format(ton[3], ton[4]))
+    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/timeon?timeon=21:10
+        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/timeon/21:45
+        try:
+            tOn = req.form['timeon']
+        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+            tOn = None
+        setting_update(timeon=tOn)
+    gc.collect()                                                        # Очищаем RAM
+
+
+# Запрос значения или единоразовое включение/выключения системы обогрева воды
+@app.route('/api/v1/timeoff')
+@require_auth
+def settimeoff(req, resp):
+    gc.collect()                                                        # Очищаем RAM
+    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/timeoff
+        toff = config['TIME_OFF']
+        yield from picoweb.start_response(resp)
+        yield from resp.awrite('{:0>2d}:{:0>2d}'.format(toff[3], toff[4]))
+    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/timeoff?timeoff=21:10
+        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/timeoff/21:45
+        try:
+            tOff = req.form['timeoff']
+        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+            tOff = None
+        setting_update(timeoff=tOff)
+    gc.collect()                                                        # Очищаем RAM
