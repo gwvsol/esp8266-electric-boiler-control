@@ -1,13 +1,12 @@
 import gc, network, os, json
 import uasyncio as asyncio
-from machine import I2C, Pin, freq
+from machine import I2C, Pin, PWM, freq
 from wificonnect import WiFiControl
 gc.collect()                                                            # Очищаем RAM
 from i2c_ds3231 import DS3231
 from term_adc import READ_TERM
-from webapp import app
-from webapp import read_config
-from webapp import bool_to_str
+from time import mktime
+from webapp import app, read_config, bool_to_str, setting_update
 gc.collect()                                                            # Очищаем RAM
 
 # Базовый класс
@@ -16,6 +15,7 @@ class Main(WiFiControl):
         super().__init__()
         self.wifi_led = Pin(2, Pin.OUT, value = 1)              # Pin2, светодиод на плате контроллера
         self.i2c = I2C(scl=Pin(14), sda=Pin(12), freq=400000)   # Pin12 и 14 i2c шина
+        self.heat = PWM(Pin(5), freq=1000, duty=0)              #Pin5, управление нагревом бойлера
         self.default_on = Pin(14, Pin.IN)                       # Pin14, кнопка для сброса настроек в дефолт
         # Дефолтные настройки, если файла config.txt не обнаружено в системе
         self.default = {}
@@ -45,7 +45,8 @@ class Main(WiFiControl):
         self.config['MemFree'] = None
         self.config['MemAvailab'] = None
         self.config['FREQ'] = None
-        self.config['TEMP'] = None
+        self.config['TEMP'] = 0
+        self.config['PWM'] = 0
 
         # Eсли нет файла config.txt или нажата кнопка сброса в дефолт, создаем файл config.txt
         if self.exists('config.txt') == False or not self.default_on(): 
@@ -100,13 +101,47 @@ class Main(WiFiControl):
                 self.ip = self.config['WIFI'].ifconfig()[0]
                 self.dprint('WebAPP: Running...')
                 app.run(debug=self.config['DEBUG'], host =self.ip, port=self.config['WEB_Port'])
-            
+
+
+    # Управление нагревом, простое сравнивание температуры
+    def heat_work(self):
+        t = self.config['T_WATER'] - self.config['TEMP']
+        if t <=  0.00:
+            self.config['PWM'] = 0
+        elif t >= 15.00:
+            self.config['PWM'] = 1000
+        elif t >= 10.00:
+            self.config['PWM'] = 800
+        elif t >= 5.00:
+            self.config['PWM'] = 650
+        elif t >= 2.00:
+            self.config['PWM'] = 500
+        elif t >= 1.00:
+            self.config['PWM'] = 300
+        elif t < 1.00:
+            self.config['PWM'] = 200
+        t = 0
+        return self.config['PWM']
+        
+    def time_on_off(self):
+        rtc = self.config['RTC_TIME']
+        ton = self.config['TIME_ON']
+        toff = self.config['TIME_OFF']
+        now = mktime(rtc)
+        timeon = mktime((rtc[0], rtc[1], rtc[2], ton[3], ton[4], 0, 0, 0))
+        dt = rtc[2] + 1 if ton[3] > toff[3] else rtc[2]
+        timeoff = mktime((rtc[0], rtc[1], dt, toff[3], toff[4], 0, 0, 0))
+        self.dprint(now, timeon, timeoff)
+        if timeon <= now and now <= timeoff:
+            return True
+        else: return False
 
     async def _dataupdate(self):
         while True:
             # RTC Update
             self.config['RTC_TIME'] = self.rtc.datetime()
             rtc = self.config['RTC_TIME']
+            
             # Проверка летнего или зименего времени каждую минуту в 30с
             if rtc[5] == 30: 
                 self.rtc.settime('dht')
@@ -121,10 +156,16 @@ class Main(WiFiControl):
             # Data Update
             self.config['TEMP'] = round(self.temp.value, 2) # Обновляем температуру воды бойлера
             gc.collect()                                                # Очищаем RAM
-            if not self.config['WORK_ALL'] and not self.config['WORK_TABLE'] and not self.config['ONE-TIME']:
-                ton = self.config['TIME_ON']
-                toff = self.config['TIME_OFF']
-            else: 
+            # Управление нагревом воды в бойлере
+            if self.config['WORK_ALL']:
+                self.heat.duty(self.heat_work())
+            elif self.config['WORK_TABLE'] and self.time_on_off():
+                self.heat.duty(self.heat_work())
+            elif self.config['ONE-TIME'] and self.time_on_off():
+                self.heat.duty(self.heat_work())
+            elif self.config['ONE-TIME'] and not self.time_on_off():
+                setting_update(workmod='offall')
+            else: self.heat.duty(0)
             await asyncio.sleep(1)
 
 
@@ -178,6 +219,7 @@ class Main(WiFiControl):
                 self.dprint('One-time activat: {}'.format(bool_to_str(self.config['ONE-TIME'])))
                 self.dprint('On time: {:0>2d}:{:0>2d}'.format(ton[3], ton[4]))
                 self.dprint('Off time: {:0>2d}:{:0>2d}'.format(toff[3], toff[4]))
+                self.dprint('Actual power:', '{}%'.format(str(int(self.config['PWM']/10))))
                 self.dprint('MemFree:', '{}Kb'.format(self.config['MemFree']))
                 self.dprint('MemAvailab:', '{}Kb'.format(self.config['MemAvailab']))
                 self.dprint('FREQ:', '{}MHz'.format(self.config['FREQ']))

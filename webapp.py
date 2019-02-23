@@ -110,7 +110,7 @@ time_work_set = """<form action='admin' method='POST'>
                     <fieldset>
                         <legend>Setting the operating mode</legend>
                         <p>Temperature<br>
-                        <input type="number" name="temp" size="4" min="35" max="85" step="5" value="40.0">'C</p>
+                        <input type="number" name="temp" size="4" min="30" max="65" step="5" value="40.0">'C</p>
                         <p><input type="radio" name="work_mode" value="contin">Continuous work<br>
                             <input type="radio" name="work_mode" value="schedule">On schedule<br>
                             <input type="radio" name="work_mode" checked value="onetime">One-time activation<br>
@@ -119,13 +119,6 @@ time_work_set = """<form action='admin' method='POST'>
                         <input type="time" name="time_on" required>On<br></p>
                         <p><input type="time" name="time_off" required>Off<br></p>
                     <p><input type="submit" value="Set Time&Mode"></p>
-                    </fieldset>
-                </form>"""
-reset_control = """<form action='admin' method='POST'>
-                    <fieldset>
-                        <legend>Restart controller</legend>
-                        <input type="hidden" name="reset" value="True">
-                        <p><input type="submit" value="Restart"></p>
                     </fieldset>
                 </form>"""
 http_footer = """</body>
@@ -273,6 +266,12 @@ def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
         else: out = None
         return out
 
+    def twater(tempw):
+        if float(tempw) >= 15.00 and float(tempw) <= 65.00:
+            t = round(float(tempw), 1)
+        else: t = None
+        return t
+
     on = on_off(timeon) if timeon else None
     off = on_off(timeoff) if timeoff else None
     if workmod:
@@ -283,7 +282,7 @@ def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
             wal, wtb, wot = 'False', 'False', 'False'
     else:
         wal, wtb, wot = None, None, None
-    t = round(float(tempw), 1) if tempw else None
+    t = twater(tempw) if tempw else None
     update_config(tw=t, ton=on, toff=off, wall=wal, wtab=wtb, otime=wot)
     gc.collect()                                                        # Очищаем RAM
 
@@ -338,6 +337,7 @@ def index(req, resp):
     yield from resp.awrite('<p>One-time activat: {}</p>'.format(bool_to_str(config['ONE-TIME'])))
     yield from resp.awrite('<p>On time: {:0>2d}:{:0>2d}</p>'.format(ton[3], ton[4]))
     yield from resp.awrite('<p>Off time: {:0>2d}:{:0>2d}</p>'.format(toff[3], toff[4]))
+    yield from resp.awrite('<p>Actual power: {}%</p>'.format(str(int(config['PWM']/10))))
     yield from resp.awrite(div_end)
     yield from resp.awrite(http_footer)
     gc.collect()                                                        # Очищаем RAM
@@ -377,10 +377,10 @@ def admin(req, resp):
         elif 'reset' in list(form.keys()):
             reset_machine()
     if req.method == "GET":
-        yield from resp.awrite('{}{}{}<br>{}{}<br>{}<br>{}<br>{}<br>{}{}'\
+        yield from resp.awrite('{}{}{}<br>{}{}<br>{}<br>{}<br>{}<br>{}'\
                     .format(div_cl_header, span_boler_adm, div_end, \
                     div_cl_admin, time_work_set, wifi_form, date_set, \
-                    passw_form, reset_control, div_end))
+                    passw_form, div_end))
     yield from resp.awrite(http_footer)
     gc.collect()                                                        # Очищаем RAM
 
