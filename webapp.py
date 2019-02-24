@@ -1,7 +1,5 @@
 import picoweb, gc, ubinascii, os, json
 from wificonnect import config
-from machine import reset
-gc.collect()                                                            # Очищаем RAM
 from ubinascii import hexlify
 from uhashlib import sha256
 gc.collect()                                                            # Очищаем RAM
@@ -19,8 +17,8 @@ http_head = """<!DOCTYPE html>
         <style> 
         html { font-family: 'Lato', Calibri, Arial, sans-serif;
                height: 100%; }
-        body { background-color: #d6cde4;
-                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='4' viewBox='0 0 4 4'%3E%3Cpath fill='%235b4848' fill-opacity='0.4' d='M1 3h1v1H1V3zm2-2h1v1H3V1z'%3E%3C/path%3E%3C/svg%3E"); }
+        body { background: #ddd;
+            color: #333; }
         .header { width: 100%;
             padding-top: .7em;
             padding-bottom: .7em;
@@ -59,7 +57,6 @@ div_cl_header = '<div class="header">'
 div_cl_info = '<div class="info">'
 div_cl_admin = '<div class = "admin">'
 div_end = '</div>'
-span_boler_adm = '<span>Boiler Control Admin</span>'
 span_err_pasw = '<span>Error Login<br>Close the browser, restart it,<br>and then try to log in again</span>'
 wifi_form = """<form action='admin' method='POST'>
                     <fieldset>
@@ -90,13 +87,10 @@ date_set = """<form action='admin' method='POST'>
                         <input type="radio" name="ntp" checked value="True">ON<br>
                         <input type="radio" name="ntp" value="False">OFF</p>
                     <p><select size="1" name="tzone" required>
-                       <option value="0">UTC 00:00</option>
-                       <option value="1">UTC +01:00</option>
-                       <option value="2">UTC +02:00</option>
-                       <option value="3">UTC +03:00</option>
-                       <option value="4">UTC +04:00</option>
-                       <option value="5">UTC +05:00</option>
-                       <option value="6">UTC +06:00</option>
+                       <option value="0">UTC +01:00</option>
+                       <option value="1">UTC +02:00</option>
+                       <option value="2">UTC +03:00</option>
+                       <option value="3">UTC +04:00</option>
                        </select></p>
                     <fieldset>
                         <legend>Setting time without an NTP server</legend>
@@ -128,30 +122,38 @@ http_footer = """</body>
             </html>"""
 
 
-# Выводим отладочные сообщения
-def dprint(*args):
-    if config['DEBUG']:
-        print(*args)
-
-
 # Шифруем пароль и логин
 def setpasswd(login:str, passwd:str) -> str:
     return str(hexlify(sha256(str(passwd+login).encode()).digest()))
 
 
+# Читаем и записываем root.txt
+def read_write_root(passwd=None):
+    if passwd:
+        with open('root.txt', 'w') as f:    # Записываем новый пароль в файл
+            f.write(passwd)
+    else:
+        with open('root.txt') as f:
+            return f.readline().rstrip()    # Logim для входа в ADMIN панель
+
+
+# Читаем config.txt
+def read_write_config(cfg=None):
+    if cfg:
+        with open('config.txt', 'w') as f:
+            json.dump(cfg, f)
+    else:
+        with open('config.txt', 'r') as f:
+            return json.loads(f.read())
+
+
 # Установка нового пароля администратора
 def setroot(login:str, passw:str):
-    dprint('Update root.txt file')
     passwd = setpasswd(login, passw)
-    with open('root.txt', 'w') as f:    # Записываем новый пароль в файл
-        f.write(passwd)
-    with open('root.txt') as admin:
-        root = admin.readline().rstrip() # Passwd для входа в ADMIN панель
-    if root == passwd:
-        gc.collect()                                                    # Очищаем RAM
+    read_write_root(passwd=passw)
+    if read_write_root() == passwd:
         return True
     else:
-        gc.collect()                                                    # Очищаем RAM
         return False
 
 
@@ -187,32 +189,17 @@ def set_wall_wtab_otime(dvar, mode):
     gc.collect()                                                        # Очищаем RAM
     return out
 
-
-# Рестарт контроллера
-def reset_machine():
-    reset()
-
-
-# Читаем config.txt
-def read_config():
-    with open('config.txt', 'r') as f:
-        return json.loads(f.read())
-
-
 # Устанавливаем, обновляем дату и время
 def datetime_update(ntp, data, ntime):
-    dprint(config['RTC'].datetime())
     if str_to_bool(ntp):
         config['NTP_UPDATE'] = False
         config['RTC'].set_zone = config['TIMEZONE']
         config['RTC'].settime('ntp')
         config['NTP_UPDATE'] = True
-        dprint('Setting time by NTP server...')
     elif not str_to_bool(ntp) and data and ntime:
         d = data.split('-')
         t = ntime.split(':')
         config['RTC'].datetime((int(d[0]), int(d[1]), int(d[2]), int(t[0]), int(t[1]), 0, 0, 0))
-        dprint('Manual time setting...')
     gc.collect()                                                        # Очищаем RAM
 
 
@@ -220,9 +207,7 @@ def datetime_update(ntp, data, ntime):
 def update_config(mode=None, ssid=None, pssw=None, tz=None, \
                     dts=None, tw=None, ton=None, toff=None, wall=None, 
                     wtab= None, otime=None):
-    with open('config.txt', 'r') as f:
-        conf = json.loads(f.read())
-        gc.collect()                                                    # Очищаем RAM
+    conf = read_write_config()
     # Обновляем настройки полученные из файла config.txt
     conf['MODE_WiFi'] = mode if mode else conf['MODE_WiFi']
     config['MODE_WiFi'] = conf['MODE_WiFi']
@@ -246,17 +231,13 @@ def update_config(mode=None, ssid=None, pssw=None, tz=None, \
     config['WORK_TABLE'] = conf['WORK_TABLE']
     conf['ONE-TIME'] = str_to_bool(otime) if otime else conf['ONE-TIME']
     config['ONE-TIME'] = conf['ONE-TIME']
-    dprint('Update config.txt file\n', conf)
-    gc.collect()                                                        # Очищаем RAM
-    # Записываем новый файл config.txt
-    with open('config.txt', 'w') as f:
-       json.dump(conf, f)
+    read_write_config(cfg=conf)       # Записываем новый файл config.txt
     gc.collect()                                                        # Очищаем RAM
 
 
 # Обновляем настройки контроллера
 def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
-    
+
     def on_off(tstr):
         t = tstr.split(':')
         if int(t[0]) >= 0 and int(t[0]) <= 23:
@@ -300,9 +281,7 @@ def require_auth(func):
         auth = auth.split(None, 1)[1]
         auth = ubinascii.a2b_base64(auth).decode()
         req.username, req.passwd = auth.split(":", 1)
-        with open('root.txt') as admin:
-            root = admin.readline().rstrip() # Logim для входа в ADMIN панель
-        if setpasswd(req.username.lower(), req.passwd) == root:
+        if setpasswd(req.username.lower(), req.passwd) == read_write_root():
             yield from func(req, resp)
         else: # Обрабатываем не верный ввод пароля
             yield from picoweb.start_response(resp)
@@ -315,7 +294,6 @@ def require_auth(func):
 # Web интерфей контроллера, используется для настройки и управления
 @app.route('/') # Основные параметра работы контроллера
 def index(req, resp):
-    gc.collect()                                                        # Очищаем RAM
     t = config['RTC_TIME']
     ton = config['TIME_ON']
     toff = config['TIME_OFF']
@@ -324,8 +302,6 @@ def index(req, resp):
     yield from resp.awrite('{}{}<br>{}'\
             .format(div_cl_header, href_adm_panel, div_end))
     yield from resp.awrite(div_cl_info)
-    if config['DEBUG']:
-        yield from resp.awrite('<p>IP: {}</p>'.format(config['IP']))
     yield from resp.awrite('<p>{:0>2d}-{:0>2d}-{:0>2d} {:0>2d}:{:0>2d}</p>'\
                 .format(t[0], t[1], t[2], t[3], t[4]))
     yield from resp.awrite('<p>Time zone: {}</p>'.format(config['TIMEZONE']))
@@ -350,7 +326,6 @@ def admin(req, resp):
     yield from picoweb.start_response(resp)
     yield from resp.awrite(http_head)
     yield from resp.awrite('{}{}<br>{}'.format(div_cl_header, href_adm_panel, div_end))
-    gc.collect()                                                         # Очищаем RAM
     if req.method == "POST":
         yield from req.read_form_data()
         form = req.form
@@ -377,8 +352,8 @@ def admin(req, resp):
         elif 'reset' in list(form.keys()):
             reset_machine()
     if req.method == "GET":
-        yield from resp.awrite('{}{}{}<br>{}{}<br>{}<br>{}<br>{}<br>{}'\
-                    .format(div_cl_header, span_boler_adm, div_end, \
+        yield from resp.awrite('{}{}<br>{}{}<br>{}<br>{}<br>{}<br>{}'\
+                    .format(div_cl_header, div_end, \
                     div_cl_admin, time_work_set, wifi_form, date_set, \
                     passw_form, div_end))
     yield from resp.awrite(http_footer)
@@ -390,18 +365,15 @@ def admin(req, resp):
 @app.route('/api/v1/temp')
 @require_auth
 def temp(req, resp):
-    gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/temp
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{:.2f}'.format(config['TEMP']))
-    gc.collect()                                                        # Очищаем RAM
 
 
 # Запрос значения установки температуры или задача нового значения
 @app.route('/api/v1/stemp')
 @require_auth
 def temp(req, resp):
-    gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/stemp
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{:.2f}'.format(config['T_WATER']))
@@ -412,14 +384,12 @@ def temp(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             t = None
         setting_update(tempw=t)
-    gc.collect()                                                        # Очищаем RAM
 
 
 # Запрос значения или установка постоянной работы/выключения системы обогрева воды
 @app.route('/api/v1/wall')
 @require_auth
 def setwall(req, resp):
-    gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wall
         out = bool_to_str(config['WORK_ALL'])
         yield from picoweb.start_response(resp)
@@ -431,14 +401,12 @@ def setwall(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             wl = None
         setting_update(workmod=set_wall_wtab_otime(wl, 'wall'))
-    gc.collect()                                                        # Очищаем RAM
 
 
 # Запрос значения или установка работы/выключения системы обогрева воды
 @app.route('/api/v1/wtab')
 @require_auth
 def setwtab(req, resp):
-    gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wtab
         out = bool_to_str(config['WORK_TABLE'])
         yield from picoweb.start_response(resp)
@@ -450,14 +418,12 @@ def setwtab(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             wt = None
         setting_update(workmod=set_wall_wtab_otime(wt, 'wtab'))
-    gc.collect()                                                        # Очищаем RAM
 
 
 # Запрос значения или единоразовое включение/выключения системы обогрева воды
 @app.route('/api/v1/otime')
 @require_auth
 def setotime(req, resp):
-    gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wtab
         out = bool_to_str(config['ONE-TIME'])
         yield from picoweb.start_response(resp)
@@ -469,14 +435,12 @@ def setotime(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             ot = None
         setting_update(workmod=set_wall_wtab_otime(ot, 'otime'))
-    gc.collect()                                                        # Очищаем RAM
 
 
 # Запрос значения или единоразовое включение/выключения системы обогрева воды
 @app.route('/api/v1/timeon')
 @require_auth
 def settimeon(req, resp):
-    gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/timeon
         ton = config['TIME_ON']
         yield from picoweb.start_response(resp)
@@ -488,14 +452,12 @@ def settimeon(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             tOn = None
         setting_update(timeon=tOn)
-    gc.collect()                                                        # Очищаем RAM
 
 
 # Запрос значения или единоразовое включение/выключения системы обогрева воды
 @app.route('/api/v1/timeoff')
 @require_auth
 def settimeoff(req, resp):
-    gc.collect()                                                        # Очищаем RAM
     if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/timeoff
         toff = config['TIME_OFF']
         yield from picoweb.start_response(resp)
@@ -507,4 +469,12 @@ def settimeoff(req, resp):
         except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
             tOff = None
         setting_update(timeoff=tOff)
-    gc.collect()                                                        # Очищаем RAM
+
+
+# Запрос значения мощности нагрева воды в бойлере
+@app.route('/api/v1/power')
+@require_auth
+def power(req, resp):
+    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/power
+        yield from picoweb.start_response(resp)
+        yield from resp.awrite('{}'.format(config['PWM']))
