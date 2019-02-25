@@ -1,9 +1,8 @@
-from machine import ADC
 import math
 
 class READ_TERM():
-    def __init__(self, adc, balance, termist, a, b, c, k, d=None):
-        self.adc_max = 1023     
+    def __init__(self, adc, balance, termist, a, b, c, k, d=False):
+        self.adc_max = 1023
         self._adc = adc
         self._bal = balance     # Балансный резистор в схеме (ом)
         self._term = termist    # Номинал терморезистора (ом)
@@ -20,17 +19,16 @@ class READ_TERM():
         n = 100 # считываний с датчика
         for i in range(n):
             val += self._adc.read()
-        val = val / n # Среднее значение 
-        Rt = self._bal * (self.adc_max / val - 1) # Вычисляем значение терморезистора
-        if self._d: # Если существует коэффициент D вычисляем используя его
+        val = val / n # Среднее значение
+        #Rt = self._bal * (self.adc_max / val - 1) # Вычисляем значение терморезистора, если терморезистор к плюсу питания
+        Rt = self._bal / (self.adc_max / val - 1) # Вычисляем значение терморезистора, если терморезистор на землю
+        if self._d: # Если используются все 4 коэффициента (для термисторов VISHAY www.vishay.com)
             Tlog = math.log(Rt / self._term)
             return math.pow((self._a + self._b * Tlog + self._c * math.pow(Tlog, 2) + \
                 self._d * math.pow(Tlog, 3)), -1) - self.kelv + self._k
-        else: # Вычисление по 3 коэффициентам - A, B, C
+        else: # Если используется 3 коэффициента. Коеффициент D должен быть задан как False
             Tlog = math.log(Rt)
-            return math.pow((self._a + self._b * Tlog + \
-                self._c * math.pow(Tlog, 3)), -1) - self.kelv + self._k
-
+            return math.pow((self._a + self._b * Tlog + self._c * math.pow(Tlog, 3)), -1) - self.kelv + self._k
 
     @property
     def value(self):
