@@ -14,8 +14,8 @@ class Main(WiFiControl):
     def __init__(self):
         super().__init__()
         self.wifi_led = Pin(2, Pin.OUT, value = 1)              # Pin2, светодиод на плате контроллера
-        self.i2c = I2C(scl=Pin(14), sda=Pin(12), freq=400000)   # Pin12 и 14 i2c шина
-        self.heat = PWM(Pin(5), freq=1000, duty=0)              #Pin5, управление нагревом бойлера
+        self.i2c = I2C(scl=Pin(14), sda=Pin(12), freq=400000)     # Pin12 и 14 i2c шина
+        self.heat = PWM(Pin(5), freq=1000, duty=0)             #Pin5, управление нагревом бойлера
         self.default_on = Pin(14, Pin.IN)                       # Pin14, кнопка для сброса настроек в дефолт
         self.adc = ADC(0)                                       # Pin0 Аналоговый вход
         # Дефолтные настройки, если файла config.txt не обнаружено в системе
