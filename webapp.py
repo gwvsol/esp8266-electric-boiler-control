@@ -85,10 +85,11 @@ date_set = """<form action='admin' method='POST'>
                         <input type="radio" name="ntp" checked value="True">ON<br>
                         <input type="radio" name="ntp" value="False">OFF</p>
                     <p><select size="1" name="tzone" required>
-                       <option value="0">UTC +01:00</option>
-                       <option value="1">UTC +02:00</option>
-                       <option value="2">UTC +03:00</option>
-                       <option value="3">UTC +04:00</option>
+                       <option value="0">UTC +00:00</option>
+                       <option value="1">UTC +01:00</option>
+                       <option value="2">UTC +02:00</option>
+                       <option value="3">UTC +03:00</option>
+                       <option value="4">UTC +04:00</option>
                        </select></p>
                     <fieldset>
                         <legend>Setting time without an NTP server</legend>
@@ -203,6 +204,7 @@ def update_config(mode=None, ssid=None, pssw=None, tz=None, \
         conf['WORK_TABLE'] = str_to_bool(wtab) if wtab else conf['WORK_TABLE']
         conf['ONE-TIME'] = str_to_bool(otime) if otime else conf['ONE-TIME']
         read_write_config(cfg=conf)
+    config['DEBUG'] = conf['DEBUG']
     config['MODE_WiFi'] = conf['MODE_WiFi']
     config['ssid'] = conf['ssid']
     config['wf_pass'] = conf['wf_pass']
@@ -214,6 +216,7 @@ def update_config(mode=None, ssid=None, pssw=None, tz=None, \
     config['WORK_ALL'] = conf['WORK_ALL']
     config['WORK_TABLE'] = conf['WORK_TABLE']
     config['ONE-TIME'] = conf['ONE-TIME']
+    config['DS_K'] = conf['DS_K']
     gc.collect()
 
 def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
@@ -305,17 +308,17 @@ def admin(req, resp):
         form = req.form
         if 'work_mode' and 'time_off' and 'time_on' and 'temp' in list(form.keys()):
             setting_update(form['time_on'], form['time_off'], form['temp'], form['work_mode'])
-            yield from resp.awrite('{}{}'.format(div_cl_info, div_end))
+            yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Setting the operating mode update', div_end))
         elif 'wifi'and 'ssid'and 'pasw' in list(form.keys()):
             update_config(mode=form['wifi'], ssid=form['ssid'], pssw=form['pasw'], rw='w')
-            yield from resp.awrite('{}{}'.format(div_cl_info, div_end))
+            yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Setting WiFi update', div_end))
         elif 'ntp' and'time' and 'daylight' and 'date' and 'tzone' in list(form.keys()):
             update_config(tz=form['tzone'], dts=form['daylight'], rw='w')
             datetime_update(form['ntp'], form['date'], form['time'])
-            yield from resp.awrite('{}{}'.format(div_cl_info, div_end))
+            yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Setting date and time update', div_end))
         elif 'login' and'repassw' and 'passw' in list(form.keys()):
             if form['passw'] == form['repassw'] and setroot(form['login'], form['passw']):
-                yield from resp.awrite('{}{}'.format(div_cl_info, div_end))
+                yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password update', div_end))
             else:
                 yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password not update', div_end))
         elif 'reset' in list(form.keys()):

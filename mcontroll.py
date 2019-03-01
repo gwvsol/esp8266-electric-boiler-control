@@ -9,15 +9,16 @@ from time import mktime
 from webapp import app, read_write_config, bool_to_str, setting_update, read_write_root, update_config
 gc.collect()                                                            # Очищаем RAM
 
+
 # Базовый класс
 class Main(WiFiControl):
     def __init__(self):
         super().__init__()
         self.wifi_led = Pin(2, Pin.OUT, value = 1)              # Pin2, светодиод на плате контроллера
-        self.i2c = I2C(scl=Pin(14), sda=Pin(12), freq=400000)     # Pin12 и 14 i2c шина
-        self.heat = PWM(Pin(5), freq=1000, duty=0)             #Pin5, управление нагревом бойлера
-        self.ds = DS18X20(OneWire(Pin(4)))                     #Pin4, шина OneWire с датчиком DS18B20
-        self.default_on = Pin(0, Pin.IN)                       # Pin14, кнопка для сброса настроек в дефолт
+        self.i2c = I2C(scl=Pin(5), sda=Pin(4), freq=400000)     # Pin12 и 14 i2c шина
+        self.heat = PWM(Pin(13), freq=1000, duty=0)             # Pin5, управление нагревом бойлера
+        self.ds = DS18X20(OneWire(Pin(12)))                     # Pin4, шина OneWire с датчиком DS18B20
+        self.default_on = Pin(14, Pin.IN)                       # Pin0, кнопка для сброса настроек в дефолт
         # Дефолтные настройки, если файла config.txt не обнаружено в системе
         self.default = {}
         self.default['DEBUG'] = True             # Разрешаем отладочный сообщения
@@ -32,26 +33,22 @@ class Main(WiFiControl):
         self.default['WORK_ALL'] = False         # Постоянный нагрев бойлера выключен
         self.default['WORK_TABLE'] = False       # Работа по расписнию
         self.default['ONE-TIME'] = False         # Одноразовое включение
-        # Дефолтный хещ логина и пароля для web admin (root:root)
+        self.default['DS_K'] = -5.0              # Поправочный коэффициент для DS18B20
+        # Дефолтный хещ логин, пароль для web admin (root:root)
         self.default_web = str(b'0242c0436daa4c241ca8a793764b7dfb50c223121bb844cf49be670a3af4dd18')
-        self.config['DEBUG'] = True                     # Разрешаем отладочный сообщения
-        self.config['WEB_Port'] = 80                    # Порт на котором работает web приложение
-        self.config['ADR_RTC'] = 0x68                   # Адрес RTC DS3231
+        self.config['DEBUG'] = True                         # Разрешаем отладочный сообщения
+        self.config['ADR_RTC'] = 0x68                       # Адрес RTC DS3231
         self.config['WIFI_AP'] = ('192.168.4.1', '255.255.255.0', '192.168.4.1', '208.67.222.222')
-        self.config['IP'] = None                        # Дефолтный IP адрес
-        self.config['no_wifi'] = True                   # Интернет отключен(значение True)
-        self.config['RTC_TIME'] = (0, 1, 1, 0, 0, 0, 0, 0) # Дефолтное время
-        self.config['NTP_UPDATE'] = True                # Разрешаем обновление по NTP
-        self.config['MemFree'] = None
-        self.config['MemAvailab'] = None
-        self.config['FREQ'] = None
+        self.config['IP'] = None                            # Дефолтный IP адрес
+        self.config['no_wifi'] = True                       # Интернет отключен(значение True)
+        self.config['RTC_TIME'] = (0, 1, 1, 0, 0, 0, 0, 0)  # Дефолтное время
+        self.config['NTP_UPDATE'] = True                    # Разрешаем обновление по NTP
         self.config['TEMP'] = 0
         self.config['PWM'] = 0
         self.config['POWER'] = (0, 1000, 800, 650, 500, 300, 200)
         self.config['SET_T'] = (0.00, 15.00, 10.00, 5.00, 2.00, 1.00)
         self.config['T_ON'] = 0
         self.config['T_OFF'] = 0
-        self.config['NOW'] = 0
 
         # Eсли нет файла config.txt или нажата кнопка сброса в дефолт, создаем файл config.txt
         if not self.exists('config.txt') or not self.default_on(): 
@@ -74,13 +71,15 @@ class Main(WiFiControl):
         self.config['RTC'] = DS3231(self.i2c, 
                        self.config['ADR_RTC'], self.config['TIMEZONE'])
         self.rtc = self.config['RTC']
-        
+        self.config['NOW'] = mktime(self.rtc.datetime())
+
         loop = asyncio.get_event_loop()
         loop.create_task(self._heartbeat())                             # Индикация подключения WiFi
         loop.create_task(self._dataupdate())                            # Обновление информации и часы
+        loop.create_task(self._collection_temp())                       #Сбор информации с температурных датчиков DS18D20
         loop.create_task(self._start_web_app())                         # Включаем WEB приложение
-        
-    
+
+
     # Запуск WEB приложения
     async def _start_web_app(self):
         """Run/Work Web App"""
@@ -89,7 +88,7 @@ class Main(WiFiControl):
             if not self.config['no_wifi'] or self.config['MODE_WiFi'] == 'AP':
                 self.ip = self.config['WIFI'].ifconfig()[0]
                 self.dprint('WebAPP: Running...')
-                app.run(debug=self.config['DEBUG'], host =self.ip, port=self.config['WEB_Port'])
+                app.run(debug=self.config['DEBUG'], host=self.ip, port=80)
 
 
     # Управление нагревом, простое сравнивание температуры
@@ -112,12 +111,12 @@ class Main(WiFiControl):
         t = 0
         return self.config['PWM']
 
+
     # Управление временем нагрева воды в бойлере
     def time_on_off(self):
         rtc = self.config['RTC_TIME']
         ton = self.config['TIME_ON']
         toff = self.config['TIME_OFF']
-        self.config['NOW'] = mktime(rtc)
         self.config['T_ON'] = mktime((rtc[0], rtc[1], rtc[2], ton[3], ton[4], 0, 0, 0))
         dt = rtc[2] + 1 if ton[3] > toff[3] else rtc[2] # Если вкл > выкл, значит выкл на след день
         self.config['T_OFF'] = mktime((rtc[0], rtc[1], dt, toff[3], toff[4], 0, 0, 0))
@@ -127,12 +126,21 @@ class Main(WiFiControl):
             return False
 
 
-    async def _dataupdate(self):
+    #Сбор информации с температурных датчиков DS18D20
+    async def _collection_temp(self):
         roms = self.ds.scan()
+        while True:
+            self.ds.convert_temp()
+            await asyncio.sleep(2)
+            self.config['TEMP'] = round(self.ds.read_temp(roms[0]) + self.config['DS_K'] , 2)
+
+
+    async def _dataupdate(self):
         while True:
             # RTC Update
             self.config['RTC_TIME'] = self.rtc.datetime()
             rtc = self.config['RTC_TIME']
+            self.config['NOW'] = mktime(rtc)
             # Проверка летнего или зименего времени каждую минуту в 30с
             if rtc[5] == 30: 
                 self.rtc.settime('dht')
@@ -144,8 +152,6 @@ class Main(WiFiControl):
                         self.rtc.settime('ntp')
                         await asyncio.sleep(1)
                         self.config['NTP_UPDATE'] = True
-            # Data Update
-            self.config['TEMP'] = 30.00 # Обновляем данные о температуре воды в бойлере
             # Управление нагревом воды в бойлере
             if self.config['WORK_ALL']:
                 self.heat.duty(self.heat_work())
@@ -165,15 +171,15 @@ class Main(WiFiControl):
     async def _heartbeat(self):
         while True:
             if self.config['no_wifi'] and self.config['MODE_WiFi'] == 'ST':
-                self.wifi_led(not self.wifi_led())      # Быстрое мигание, если соединение отсутствует
+                self.wifi_led(not self.wifi_led())                      # Быстрое мигание, если соединение отсутствует
                 await asyncio.sleep_ms(200)
             elif not self.config['no_wifi'] and self.config['MODE_WiFi'] == 'ST':
-                self.wifi_led(0)                        # Редкое мигание при подключении
+                self.wifi_led(0)                                        # Редкое мигание при подключении
                 await asyncio.sleep_ms(50)
                 self.wifi_led(1)
                 await asyncio.sleep_ms(5000)
             else:
-                self.wifi_led(0)                        # Два быстрых миганиения при AP Mode
+                self.wifi_led(0)                                        # Два быстрых миганиения при AP Mode
                 await asyncio.sleep_ms(50)
                 self.wifi_led(1)
                 await asyncio.sleep_ms(50)
@@ -186,7 +192,7 @@ class Main(WiFiControl):
     async def _run_main_loop(self):                                     # Бесконечный цикл
         while True:
             gc.collect()                                                # Очищаем RAM
-            await asyncio.sleep(60)
+            await asyncio.sleep(30)
 
 
     async def main(self):
