@@ -26,7 +26,12 @@
 #### Web интерфес
 Логин и пароль по умолчанию: root root, при настройке контроллера его необходимо изменить. В случае утери пароля, предусмотрен сброс настроек контроллера.
 
-![2019-03-02-10-14-37](https://user-images.githubusercontent.com/13176091/53681250-8ce24480-3cef-11e9-8c19-a6087d8a1010.png) ![2019-03-02-10-14-50](https://user-images.githubusercontent.com/13176091/53681259-a5eaf580-3cef-11e9-9e6d-dfa91ab67fbf.png) ![2019-03-02-10-15-26](https://user-images.githubusercontent.com/13176091/53681273-c915a500-3cef-11e9-907d-9d1ab44bf3b6.png) ![2019-03-02-10-15-51](https://user-images.githubusercontent.com/13176091/53681332-b485dc80-3cf0-11e9-8520-b8c29e8a927e.png) ![2019-03-02-10-16-11](https://user-images.githubusercontent.com/13176091/53681348-ff9fef80-3cf0-11e9-970f-df6319f08843.png) ![2019-03-02-10-16-17](https://user-images.githubusercontent.com/13176091/53681366-4c83c600-3cf1-11e9-80f3-bbab6f49703a.png)
+![2019-03-02-10-14-37](https://user-images.githubusercontent.com/13176091/53681250-8ce24480-3cef-11e9-8c19-a6087d8a1010.png) 
+![2019-03-02-10-14-50](https://user-images.githubusercontent.com/13176091/53681259-a5eaf580-3cef-11e9-9e6d-dfa91ab67fbf.png) 
+![2019-03-02-10-15-26](https://user-images.githubusercontent.com/13176091/53681273-c915a500-3cef-11e9-907d-9d1ab44bf3b6.png) 
+![2019-03-02-10-15-51](https://user-images.githubusercontent.com/13176091/53681332-b485dc80-3cf0-11e9-8520-b8c29e8a927e.png) 
+![2019-03-02-10-16-11](https://user-images.githubusercontent.com/13176091/53681348-ff9fef80-3cf0-11e9-970f-df6319f08843.png) 
+![2019-03-02-10-16-17](https://user-images.githubusercontent.com/13176091/53681366-4c83c600-3cf1-11e9-80f3-bbab6f49703a.png)
 
 #### API интефейс
 Поддерживает GET и POST запросы.
@@ -129,6 +134,10 @@ pip3 install esptool
 esptool.py --port /dev/ttyUSB0 erase_flash
 esptool.py --port /dev/ttyUSB0 --baud 460800 write_flash --flash_size=detect -fm dio 0 firmware-combined.bin
 ```
+***
+![2018-12-25_00-14-01](https://user-images.githubusercontent.com/13176091/53683429-59141880-3d09-11e9-99ac-9264537ced6f.png)
+![2018-12-25_00-13-10](https://user-images.githubusercontent.com/13176091/53683434-73e68d00-3d09-11e9-9c34-9804adbb2fb1.png)
+***
 
 
 
