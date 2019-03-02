@@ -31,9 +31,11 @@
 
 ```curl -s -u root:root -G http://192.168.0.16/api/v1/temp```
 
-*Запрос значения поддерживаемой температуры или задача нового значения* ```/api/v1/stemp```
+*Запрос значения поддерживаемой температуры или установка нового значения* ```/api/v1/stemp```
 
 ```curl -s -u root:root -G http://192.168.0.16/api/v1/stemp```
+
 ```curl -s -u root:root -X POST http://192.168.0.16/api/v1/stemp?stemp=56.60``` или
+
 ```curl -s -u root:root -X POST http://192.168.0.16/api/v1/stemp/30.60```
 
