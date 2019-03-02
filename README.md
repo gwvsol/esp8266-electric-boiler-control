@@ -14,7 +14,7 @@
 * Web интерфейс для настройки контроллера
 * API интерфейс для интеграции с системой умный дом (Например, [OpenHab](https://www.openhab.org/))
 
-##### Используемые библиотеки
+#### Используемые библиотеки
 * [OneWire](https://github.com/micropython/micropython/blob/master/drivers/onewire/onewire.py)
 * [DS18B20](https://github.com/micropython/micropython/blob/master/drivers/onewire/ds18x20.py)
 * [DS3231](https://github.com/gwvsol/ESP8266-i2c-DS3231)
@@ -135,6 +135,7 @@ esptool.py --port /dev/ttyUSB0 erase_flash
 esptool.py --port /dev/ttyUSB0 --baud 460800 write_flash --flash_size=detect -fm dio 0 firmware-combined.bin
 ```
 ***
+#### Модель печатной платы контроллера
 ![2018-12-25_00-14-01](https://user-images.githubusercontent.com/13176091/53683429-59141880-3d09-11e9-99ac-9264537ced6f.png)
 ![2018-12-25_00-13-10](https://user-images.githubusercontent.com/13176091/53683434-73e68d00-3d09-11e9-9c34-9804adbb2fb1.png)
 ***
