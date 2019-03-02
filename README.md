@@ -2,7 +2,7 @@
 
 [![micropython](https://user-images.githubusercontent.com/13176091/53680744-4dfcc080-3ce8-11e9-94e1-c7985181d6a5.png)](https://micropython.org/)
 
-Контроллер для управления нагревом воды в бойлере. Собран на ESP8266. В качестве датчика температуры используется DS18B20, а часов точного времени DS3231. Для управления нагревательным элементом, симистор BTA41-600 с рабочим током 40А. Питание контроллера выполнено на HLK-PM03 3W.
+Контроллер для управления нагревом воды в бойлере. Собран на ESP8266. В качестве датчика температуры используется DS18B20, а часов времени DS3231. Для управления нагревательным элементом, симистор BTA41-600 с рабочим током 40А. Питание контроллера выполнено на HLK-PM03 3W.
 
 #### Функции контроллера
 * Поддержание заданной температуры воды
@@ -38,59 +38,59 @@
 
 *Запрос значения температуры воды* ```/api/v1/temp```
 
-```curl -s -u root:root -G http://192.168.0.16/api/v1/temp```
+```curl -s -u root:root -G http://YOUR_IP/api/v1/temp```
 
 *Запрос значения поддерживаемой температуры или установка нового значения* ```/api/v1/stemp```
 
-```curl -s -u root:root -G http://192.168.0.16/api/v1/stemp```
+```curl -s -u root:root -G http://YOUR_IP/api/v1/stemp```
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/stemp?stemp=56.60``` или
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/stemp?stemp=56.60``` или
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/stemp/30.60```
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/stemp/30.60```
 
 *Запрос значения или установка постоянной работы/выключения системы обогрева воды* ```/api/v1/wall```
 
-```curl -s -u root:root -G http://192.168.0.16/api/v1/wall```
+```curl -s -u root:root -G http://YOUR_IP/api/v1/wall```
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/wall?wall=1/{0} или ?wall=ON/{OFF}``` или
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/wall?wall=1/{0} или ?wall=ON/{OFF}``` или
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/wall/1{0} или wall/ON{OFF}```
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/wall/1{0} или wall/ON{OFF}```
 
 *Запрос значения или установка работы/выключения системы обогрева воды по рассписанию* ```/api/v1/wtab```
 
-```curl -s -u root:root -G http://192.168.0.16/api/v1/wtab```
+```curl -s -u root:root -G http://YOUR_IP/api/v1/wtab```
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/wtab?wtab=1/{0} или ?wtab=ON/{OFF}``` или
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/wtab?wtab=1/{0} или ?wtab=ON/{OFF}``` или
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/wtab/1{0} или wtab/ON{OFF}```
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/wtab/1{0} или wtab/ON{OFF}```
 
 *Запрос значения или единоразовое включение/выключения системы обогрева воды* ```/api/v1/otime```
 
-```curl -s -u root:root -G http://192.168.0.16/api/v1/otime```
+```curl -s -u root:root -G http://YOUR_IP/api/v1/otime```
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/otime?otime=1/{0} или ?otime=ON/{OFF}``` или
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/otime?otime=1/{0} или ?otime=ON/{OFF}``` или
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/otime/1{0} или otime/ON{OFF}```
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/otime/1{0} или otime/ON{OFF}```
 
 *Запрос значения или установка времени включения системы обогрева воды* ```/api/v1/timeon```
 
-```curl -s -u root:root -G http://192.168.0.16/api/v1/timeon```
+```curl -s -u root:root -G http://YOUR_IP/api/v1/timeon```
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/timeon?timeon=21:10``` или
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/timeon?timeon=21:10``` или
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/timeon/21:45```
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/timeon/21:45```
 
 *Запрос значения или установка времени выключения системы обогрева воды* ```/api/v1/timeoff```
 
-```curl -s -u root:root -G http://192.168.0.16/api/v1/timeoff```
+```curl -s -u root:root -G http://YOUR_IP/api/v1/timeoff```
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/timeon?timeoff=21:10``` или
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/timeon?timeoff=21:10``` или
 
-```curl -s -u root:root -X POST http://192.168.0.16/api/v1/timeoff/21:45```
+```curl -s -u root:root -X POST http://YOUR_IP/api/v1/timeoff/21:45```
 
 *Запрос значения мощности обогрева воды* ```/api/v1/power```
 
-```curl -s -u root:root -G http://192.168.0.16/api/v1/power```
+```curl -s -u root:root -G http://YOUR_IP/api/v1/power```
 
 #### Файл настроек контроллера
 В контроллере используется два файла настроек, в ```config.txt``` находятся все основные настройки контроллера. Файл имеет вид:
