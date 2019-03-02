@@ -122,12 +122,10 @@ http_footer = """</body>
             </html>"""
 
 
-# Шифруем пароль и логин
 def setpasswd(login:str, passwd:str) -> str:
     return str(hexlify(sha256(str(passwd+login).encode()).digest()))
 
 
-# Читаем и записываем root.txt
 def read_write_root(passwd=None):
     if passwd:
         with open('root.txt', 'w') as f:    # Записываем новый пароль в файл
@@ -137,7 +135,6 @@ def read_write_root(passwd=None):
             return f.readline().rstrip()    # Logim для входа в ADMIN панель
 
 
-# Читаем config.txt
 def read_write_config(cfg=None):
     if cfg:
         with open('config.txt', 'w') as f:
@@ -147,7 +144,6 @@ def read_write_config(cfg=None):
             return json.loads(f.read())
 
 
-# Установка нового пароля администратора
 def setroot(login:str, passw:str):
     passwd = setpasswd(login, passw)
     read_write_root(passwd=passw)
@@ -157,7 +153,6 @@ def setroot(login:str, passw:str):
         return False
 
 
-# Преобразуем строку в bool
 def str_to_bool(s):
     if s == 'True':
          return True
@@ -167,7 +162,6 @@ def str_to_bool(s):
          raise ValueError
 
 
-# Преобразуем bool в строку
 def bool_to_str(s):
     if s == True:
          return 'ON'
@@ -175,7 +169,6 @@ def bool_to_str(s):
          return 'OFF'
 
 
-# Вспомогальтельный метод для API wall, wtab, otime
 def set_wall_wtab_otime(dvar, mode):
     if dvar == 'ON' or dvar == '1':
         if mode == 'wall':
@@ -189,7 +182,7 @@ def set_wall_wtab_otime(dvar, mode):
     gc.collect()                                                        # Очищаем RAM
     return out
 
-# Устанавливаем, обновляем дату и время
+
 def datetime_update(ntp, data, ntime):
     if str_to_bool(ntp):
         config['NTP_UPDATE'] = False
@@ -203,12 +196,10 @@ def datetime_update(ntp, data, ntime):
     gc.collect()                                                        # Очищаем RAM
 
 
-# Обновлем config.txt
 def update_config(mode=None, ssid=None, pssw=None, tz=None, \
                     dts=None, tw=None, ton=None, toff=None, wall=None, 
                     wtab= None, otime=None):
     conf = read_write_config()
-    # Обновляем настройки полученные из файла config.txt
     conf['MODE_WiFi'] = mode if mode else conf['MODE_WiFi']
     config['MODE_WiFi'] = conf['MODE_WiFi']
     conf['ssid'] = ssid if ssid else conf['ssid']
@@ -235,7 +226,6 @@ def update_config(mode=None, ssid=None, pssw=None, tz=None, \
     gc.collect()                                                        # Очищаем RAM
 
 
-# Обновляем настройки контроллера
 def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
 
     def on_off(tstr):
@@ -268,7 +258,6 @@ def setting_update(timeon=None, timeoff=None, tempw=None, workmod=None):
     gc.collect()                                                        # Очищаем RAM
 
 
-# Аутентификация пользователя
 def require_auth(func):
     def auth(req, resp):
         auth = req.headers.get(b"Authorization")
@@ -291,8 +280,7 @@ def require_auth(func):
     return auth
 
 
-# Web интерфей контроллера, используется для настройки и управления
-@app.route('/') # Основные параметра работы контроллера
+@app.route('/')
 def index(req, resp):
     t = config['RTC_TIME']
     ton = config['TIME_ON']
@@ -317,9 +305,8 @@ def index(req, resp):
     yield from resp.awrite(div_end)
     yield from resp.awrite(http_footer)
     gc.collect()                                                        # Очищаем RAM
-    
 
-# Админ панель
+
 @app.route('/admin')
 @require_auth
 def admin(req, resp):
@@ -329,26 +316,21 @@ def admin(req, resp):
     if req.method == "POST":
         yield from req.read_form_data()
         form = req.form
-        # Setting the operating mode
         if 'work_mode' and 'time_off' and 'time_on' and 'temp' in list(form.keys()):
             setting_update(form['time_on'], form['time_off'], form['temp'], form['work_mode'])
             yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Setting the operating mode update', div_end))
-        # Setting WiFi
         elif 'wifi'and 'ssid'and 'pasw' in list(form.keys()):
             update_config(mode=form['wifi'], ssid=form['ssid'], pssw=form['pasw'])
             yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Setting WiFi update', div_end))
-        # Setting date and time
         elif 'ntp' and'time' and 'daylight' and 'date' and 'tzone' in list(form.keys()):
             update_config(tz=form['tzone'], dts=form['daylight'])
             datetime_update(form['ntp'], form['date'], form['time'])
             yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Setting date and time update', div_end))
-        # Chenge password
         elif 'login' and'repassw' and 'passw' in list(form.keys()):
             if form['passw'] == form['repassw'] and setroot(form['login'], form['passw']):
                 yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password update', div_end))
             else:
                 yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password not update', div_end))
-        # Restarting the controller
         elif 'reset' in list(form.keys()):
             reset_machine()
     if req.method == "GET":
@@ -360,121 +342,112 @@ def admin(req, resp):
     gc.collect()                                                        # Очищаем RAM
 
 
-# API интерфейс для работы с системой умный домы, напрмер OpenHab
-# Запрос значения фактической температуры или установка нового значения температуры
 @app.route('/api/v1/temp')
 @require_auth
 def temp(req, resp):
-    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/temp
+    if req.method == 'GET':
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{:.2f}'.format(config['TEMP']))
 
 
-# Запрос значения установки температуры или задача нового значения
 @app.route('/api/v1/stemp')
 @require_auth
 def temp(req, resp):
-    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/stemp
+    if req.method == 'GET':
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{:.2f}'.format(config['T_WATER']))
-    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/stemp?stemp=56.60
-        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/stemp/300.60
+    elif req.method == 'POST':
+        req.parse_qs()
         try:
             t = req.form['stemp']
-        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+        except (ValueError, KeyError):
             t = None
         setting_update(tempw=t)
 
 
-# Запрос значения или установка постоянной работы/выключения системы обогрева воды
 @app.route('/api/v1/wall')
 @require_auth
 def setwall(req, resp):
-    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wall
+    if req.method == 'GET':
         out = bool_to_str(config['WORK_ALL'])
         yield from picoweb.start_response(resp)
         yield from resp.awrite(out)
-    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wall?wall=1/{0} или ?wall=ON/{OFF}
-        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wall/1{0} или wall/ON{OFF}
+    elif req.method == 'POST':
+        req.parse_qs()
         try:
             wl = req.form['wall']
-        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+        except (ValueError, KeyError):
             wl = None
         setting_update(workmod=set_wall_wtab_otime(wl, 'wall'))
 
 
-# Запрос значения или установка работы/выключения системы обогрева воды
 @app.route('/api/v1/wtab')
 @require_auth
 def setwtab(req, resp):
-    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wtab
+    if req.method == 'GET':
         out = bool_to_str(config['WORK_TABLE'])
         yield from picoweb.start_response(resp)
         yield from resp.awrite(out)
-    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wtab?wtab=1/{0} или ?wtab=ON/{OFF}
-        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wtab/1{0} или wtab/ON{OFF}
+    elif req.method == 'POST':
+        req.parse_qs()
         try:
             wt = req.form['wtab']
-        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+        except (ValueError, KeyError):
             wt = None
         setting_update(workmod=set_wall_wtab_otime(wt, 'wtab'))
 
 
-# Запрос значения или единоразовое включение/выключения системы обогрева воды
 @app.route('/api/v1/otime')
 @require_auth
 def setotime(req, resp):
-    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/wtab
+    if req.method == 'GET':
         out = bool_to_str(config['ONE-TIME'])
         yield from picoweb.start_response(resp)
         yield from resp.awrite(out)
-    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wtab?wtab=1/{0} или ?wtab=ON/{OFF}
-        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/wtab/1{0} или wtab/ON{OFF}
+    elif req.method == 'POST':
+        req.parse_qs()
         try:
             ot = req.form['otime']
-        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+        except (ValueError, KeyError):
             ot = None
         setting_update(workmod=set_wall_wtab_otime(ot, 'otime'))
 
 
-# Запрос значения или единоразовое включение/выключения системы обогрева воды
 @app.route('/api/v1/timeon')
 @require_auth
 def settimeon(req, resp):
-    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/timeon
+    if req.method == 'GET':
         ton = config['TIME_ON']
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{:0>2d}:{:0>2d}'.format(ton[3], ton[4]))
-    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/timeon?timeon=21:10
-        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/timeon/21:45
+    elif req.method == 'POST':
+        req.parse_qs()
         try:
             tOn = req.form['timeon']
-        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+        except (ValueError, KeyError):
             tOn = None
         setting_update(timeon=tOn)
 
 
-# Запрос значения или единоразовое включение/выключения системы обогрева воды
 @app.route('/api/v1/timeoff')
 @require_auth
 def settimeoff(req, resp):
-    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/timeoff
+    if req.method == 'GET':
         toff = config['TIME_OFF']
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{:0>2d}:{:0>2d}'.format(toff[3], toff[4]))
-    elif req.method == 'POST': # TEST curl -s -X POST -v http://192.168.0.16/api/v1/timeoff?timeoff=21:10
-        req.parse_qs()         # TEST curl -s -X POST -v http://192.168.0.16/api/v1/timeoff/21:45
+    elif req.method == 'POST':
+        req.parse_qs()
         try:
             tOff = req.form['timeoff']
-        except (ValueError, KeyError): # ValueError req_form = req.form['temp'] # KeyError req_form = req.form['temp']
+        except (ValueError, KeyError):
             tOff = None
         setting_update(timeoff=tOff)
 
 
-# Запрос значения мощности нагрева воды в бойлере
 @app.route('/api/v1/power')
 @require_auth
 def power(req, resp):
-    if req.method == 'GET': # TEST curl -s -G -v http://192.168.0.16/api/v1/power
+    if req.method == 'GET':
         yield from picoweb.start_response(resp)
         yield from resp.awrite('{}'.format(config['PWM']))
