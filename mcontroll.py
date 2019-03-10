@@ -3,7 +3,7 @@ import uasyncio as asyncio
 from machine import I2C, Pin, PWM, freq
 from wificonnect import WiFiControl
 from i2c_ds3231 import DS3231
-from ds18x20 import DS18X20
+from ds18b20 import DS18X20
 from onewire import OneWire
 from time import mktime
 from webapp import app, read_write_config, bool_to_str, setting_update, read_write_root, update_config

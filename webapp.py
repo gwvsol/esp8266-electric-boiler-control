@@ -321,12 +321,9 @@ def admin(req, resp):
                 yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password update', div_end))
             else:
                 yield from resp.awrite('{}{}{}'.format(div_cl_info, 'Admin password not update', div_end))
-        elif 'reset' in list(form.keys()):
-            reset_machine()
     if req.method == "GET":
-        yield from resp.awrite('{}{}<br>{}{}<br>{}<br>{}<br>{}<br>{}'\
-                    .format(div_cl_header, div_end, \
-                    div_cl_admin, time_work_set, wifi_form, date_set, \
+        yield from resp.awrite('{}{}<br>{}<br>{}<br>{}<br>{}'\
+                    .format(div_cl_admin, time_work_set, wifi_form, date_set, \
                     passw_form, div_end))
     yield from resp.awrite(http_footer)
     gc.collect()                                                        # Очищаем RAM
